@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate, formatInt } from "@/lib/format";
 import { CreateCycleForm } from "./create-cycle-form";
+import { CycleActions } from "./cycle-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,16 @@ export default async function CyclesPage() {
   const cycles = await prisma.cycle.findMany({
     orderBy: { number: "desc" },
     include: {
-      _count: { select: { sales: true, expenses: true, readings: true } },
+      _count: {
+        select: {
+          sales: true,
+          expenses: true,
+          readings: true,
+          deposits: true,
+          withdrawals: true,
+          inventory: true,
+        },
+      },
     },
   });
 
@@ -75,7 +85,7 @@ export default async function CyclesPage() {
                     <th className="py-2 font-medium">المبيعات</th>
                     <th className="py-2 font-medium">المصاريف</th>
                     <th className="py-2 font-medium">القراءات</th>
-                    <th className="py-2"></th>
+                    <th className="py-2 font-medium">{isAdmin ? "إجراءات" : ""}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -100,6 +110,23 @@ export default async function CyclesPage() {
                           تفاصيل ←
                         </Link>
                       </td>
+                      {isAdmin && (
+                        <td className="py-3">
+                          <CycleActions
+                            cycleId={c.id}
+                            status={c.status}
+                            hasData={
+                              c._count.sales +
+                                c._count.expenses +
+                                c._count.readings +
+                                c._count.deposits +
+                                c._count.withdrawals +
+                                c._count.inventory >
+                              0
+                            }
+                          />
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
