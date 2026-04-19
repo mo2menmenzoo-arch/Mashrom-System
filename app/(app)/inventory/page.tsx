@@ -17,7 +17,7 @@ const SOURCE_LABEL: Record<string, string> = {
 export default async function InventoryPage() {
   const activeCycle = await prisma.cycle.findFirst({
     where: { status: { in: ["ACTIVE", "ENDED"] } },
-    orderBy: { startDate: "desc" },
+    orderBy: { number: "desc" },
   });
 
   if (!activeCycle) {
