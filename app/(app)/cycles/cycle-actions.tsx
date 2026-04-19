@@ -32,18 +32,26 @@ export function CycleActions({
   function handleClose() {
     setError(null);
     startTransition(async () => {
-      const result = await closeCycleAction(cycleId);
-      if (!result.ok) setError(result.error);
-      else router.refresh();
+      try {
+        const result = await closeCycleAction(cycleId);
+        if (!result.ok) setError(result.error);
+        else router.refresh();
+      } catch {
+        setError("حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى");
+      }
     });
   }
 
   function handleDelete() {
     setError(null);
     startTransition(async () => {
-      const result = await deleteCycleAction(cycleId);
-      if (!result.ok) setError(result.error);
-      else router.refresh();
+      try {
+        const result = await deleteCycleAction(cycleId);
+        if (!result.ok) setError(result.error);
+        else router.refresh();
+      } catch {
+        setError("حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى");
+      }
     });
   }
 
@@ -107,7 +115,9 @@ export function CycleActions({
       </div>
 
       {error && (
-        <p className="text-xs text-destructive">{error}</p>
+        <p className="mt-1 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
+          {error}
+        </p>
       )}
     </div>
   );
