@@ -1,3 +1,4 @@
+// Financial reports page
 import Link from "next/link";
 import {
   TrendingUp,
