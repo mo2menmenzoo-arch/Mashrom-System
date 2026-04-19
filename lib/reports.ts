@@ -51,3 +51,11 @@ export async function getCyclePnL(cycleId: string): Promise<CyclePnL> {
     totalUnpaid: Number((revenue - paid).toFixed(2)),
   };
 }
+
+export async function getAllCyclesPnL(): Promise<CyclePnL[]> {
+  const cycles = await prisma.cycle.findMany({
+    orderBy: { number: "asc" },
+    select: { id: true, number: true },
+  });
+  return Promise.all(cycles.map((c) => getCyclePnL(c.id)));
+}
