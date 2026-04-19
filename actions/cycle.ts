@@ -99,3 +99,47 @@ export async function closeCycleAction(cycleId: string): Promise<ActionResult> {
     return { ok: false, error: msg };
   }
 }
+
+export async function deleteCycleAction(cycleId: string): Promise<ActionResult> {
+  try {
+    const user = await requireRole(perms.cycleManage);
+
+    const cycle = await prisma.cycle.findUnique({
+      where: { id: cycleId },
+      include: {
+        _count: {
+          select: {
+            sales: true,
+            expenses: true,
+            readings: true,
+            deposits: true,
+            withdrawals: true,
+            inventory: true,
+          },
+        },
+      },
+    });
+    if (!cycle) return { ok: false, error: "الدورة غير موجودة" };
+
+    const total =
+      cycle._count.sales +
+      cycle._count.expenses +
+      cycle._count.readings +
+      cycle._count.deposits +
+      cycle._count.withdrawals +
+      cycle._count.inventory;
+
+    if (total > 0) {
+      return { ok: false, error: "لا يمكن حذف دورة تحتوي على بيانات" };
+    }
+
+    await prisma.cycle.delete({ where: { id: cycleId } });
+
+    revalidatePath("/cycles");
+    revalidatePath("/dashboard");
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "خطأ غير متوقع";
+    return { ok: false, error: msg };
+  }
+}
