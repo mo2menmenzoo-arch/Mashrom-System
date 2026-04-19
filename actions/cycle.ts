@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { AuditAction, CycleStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -15,7 +16,11 @@ const createCycleSchema = z.object({
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
-export async function createCycleAction(formData: FormData): Promise<ActionResult> {
+export async function createCycleAction(
+  _prevState: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  let created = false;
   try {
     const user = await requireRole(perms.cycleManage);
 
@@ -52,11 +57,14 @@ export async function createCycleAction(formData: FormData): Promise<ActionResul
 
     revalidatePath("/cycles");
     revalidatePath("/dashboard");
-    return { ok: true };
+    created = true;
   } catch (err) {
+    console.error("[createCycleAction] Error:", err);
     const msg = err instanceof Error ? err.message : "خطأ غير متوقع";
     return { ok: false, error: msg };
   }
+  if (created) redirect("/cycles");
+  return { ok: true };
 }
 
 export async function closeCycleAction(cycleId: string): Promise<ActionResult> {

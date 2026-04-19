@@ -8,10 +8,14 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const isOnApp = !nextUrl.pathname.startsWith("/login");
-      if (isOnApp) return isLoggedIn;
-      if (isLoggedIn) return Response.redirect(new URL("/dashboard", nextUrl));
-      return true;
+      const isPublic =
+        nextUrl.pathname.startsWith("/login") ||
+        nextUrl.pathname.startsWith("/signup");
+      if (isPublic) {
+        if (isLoggedIn) return Response.redirect(new URL("/dashboard", nextUrl));
+        return true;
+      }
+      return isLoggedIn;
     },
     jwt({ token, user }) {
       if (user) {

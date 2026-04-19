@@ -44,3 +44,5 @@ prisma/dev.db-journal
 # editor
 .vscode
 .idea
+
+.vercel

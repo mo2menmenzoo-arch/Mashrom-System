@@ -14,6 +14,7 @@ import {
   LineChart,
   Search,
   Settings,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "@prisma/client";
@@ -37,6 +38,7 @@ const NAV: NavItem[] = [
   { href: "/analytics", label: "التحليل البياني", icon: LineChart },
   { href: "/search", label: "البحث", icon: Search },
   { href: "/settings", label: "الإعدادات", icon: Settings, roles: ["ADMIN"] },
+  { href: "/settings/users", label: "إدارة المستخدمين", icon: Users, roles: ["ADMIN"] },
 ];
 
 export function Sidebar({ role }: { role: Role }) {
