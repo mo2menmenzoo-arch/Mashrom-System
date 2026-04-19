@@ -16,7 +16,7 @@ const SOURCE_LABEL: Record<string, string> = {
 
 export default async function InventoryPage() {
   const activeCycle = await prisma.cycle.findFirst({
-    where: { status: "ACTIVE" },
+    where: { status: { in: ["ACTIVE", "ENDED"] } },
     orderBy: { startDate: "desc" },
   });
 
@@ -26,7 +26,7 @@ export default async function InventoryPage() {
         <h1 className="text-2xl font-bold">المخزن</h1>
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            لا توجد دورة إنتاج نشطة. أنشئ دورة أولاً من صفحة الدورات.
+            لا توجد دورات بعد. أنشئ دورة أولاً من صفحة الدورات.
           </CardContent>
         </Card>
       </div>
