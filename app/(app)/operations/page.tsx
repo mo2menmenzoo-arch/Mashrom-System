@@ -1,10 +1,12 @@
 import { Plus, AlertTriangle } from "lucide-react";
 import { prisma } from "@/lib/db";
+import { auth } from "@/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ReadingForm } from "./reading-form";
+import { ReadingRowActions } from "./reading-row-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -15,37 +17,26 @@ const CLEANLINESS_LABEL: Record<string, string> = {
   POOR: "سيء",
 };
 
-const CLEANLINESS_VARIANT: Record<
-  string,
-  "success" | "secondary" | "warning" | "destructive"
-> = {
+const CLEANLINESS_VARIANT: Record<string, "success" | "secondary" | "warning" | "destructive"> = {
   EXCELLENT: "success",
   GOOD: "secondary",
   ACCEPTABLE: "warning",
   POOR: "destructive",
 };
 
-// Safe ranges for mushroom growing
-const TEMP_MIN = 16;
-const TEMP_MAX = 28;
-const HUMIDITY_MIN = 80;
-const HUMIDITY_MAX = 95;
+const TEMP_MIN = 16, TEMP_MAX = 28;
+const HUMIDITY_MIN = 80, HUMIDITY_MAX = 95;
 const CO2_MAX = 2000;
 
-function isTempAlert(v: number | null) {
-  if (v === null) return false;
-  return v < TEMP_MIN || v > TEMP_MAX;
-}
-function isHumidityAlert(v: number | null) {
-  if (v === null) return false;
-  return v < HUMIDITY_MIN || v > HUMIDITY_MAX;
-}
-function isCo2Alert(v: number | null) {
-  if (v === null) return false;
-  return v > CO2_MAX;
-}
+function isTempAlert(v: number | null) { return v !== null && (v < TEMP_MIN || v > TEMP_MAX); }
+function isHumidityAlert(v: number | null) { return v !== null && (v < HUMIDITY_MIN || v > HUMIDITY_MAX); }
+function isCo2Alert(v: number | null) { return v !== null && v > CO2_MAX; }
 
 export default async function OperationsPage() {
+  const session = await auth();
+  const role = session?.user?.role;
+  const canEdit = role === "ADMIN" || role === "OPERATOR";
+
   const activeCycle = await prisma.cycle.findFirst({
     where: { status: "ACTIVE" },
     orderBy: { startDate: "desc" },
@@ -88,22 +79,16 @@ export default async function OperationsPage() {
             تسجيل قراءة جديدة
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <ReadingForm cycleId={activeCycle.id} />
-        </CardContent>
+        <CardContent><ReadingForm cycleId={activeCycle.id} /></CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            سجل القراءات ({formatInt(readings.length)})
-          </CardTitle>
+          <CardTitle className="text-base">سجل القراءات ({formatInt(readings.length)})</CardTitle>
         </CardHeader>
         <CardContent>
           {readings.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              لا توجد قراءات مسجلة بعد.
-            </p>
+            <p className="py-8 text-center text-sm text-muted-foreground">لا توجد قراءات مسجلة بعد.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -116,6 +101,7 @@ export default async function OperationsPage() {
                     <th className="py-2 font-medium">CO₂ (ppm)</th>
                     <th className="py-2 font-medium">النظافة</th>
                     <th className="py-2 font-medium">ملاحظات</th>
+                    {canEdit && <th className="py-2 font-medium">إجراءات</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -125,61 +111,48 @@ export default async function OperationsPage() {
                     const co2Alert = isCo2Alert(r.co2);
                     const hasAlert = tempAlert || humidAlert || co2Alert;
                     return (
-                      <tr
-                        key={r.id}
-                        className={cn(
-                          "border-b last:border-0 hover:bg-muted/40",
-                          hasAlert && "bg-warning/5",
-                        )}
-                      >
+                      <tr key={r.id} className={cn("border-b last:border-0 hover:bg-muted/40", hasAlert && "bg-warning/5")}>
                         <td className="py-3 tabular-nums font-medium">
                           <span className="flex items-center gap-1">
-                            {hasAlert && (
-                              <AlertTriangle className="h-3 w-3 text-warning" />
-                            )}
+                            {hasAlert && <AlertTriangle className="h-3 w-3 text-warning" />}
                             {formatInt(r.dayNumber)}
                           </span>
                         </td>
                         <td className="py-3 tabular-nums">{formatDate(r.date)}</td>
-                        <td
-                          className={cn(
-                            "py-3 tabular-nums",
-                            tempAlert && "font-medium text-warning",
-                          )}
-                        >
+                        <td className={cn("py-3 tabular-nums", tempAlert && "font-medium text-warning")}>
                           {r.temperature !== null ? Number(r.temperature).toFixed(1) : "—"}
                         </td>
-                        <td
-                          className={cn(
-                            "py-3 tabular-nums",
-                            humidAlert && "font-medium text-warning",
-                          )}
-                        >
+                        <td className={cn("py-3 tabular-nums", humidAlert && "font-medium text-warning")}>
                           {r.humidity !== null ? Number(r.humidity).toFixed(1) : "—"}
                         </td>
-                        <td
-                          className={cn(
-                            "py-3 tabular-nums",
-                            co2Alert && "font-medium text-warning",
-                          )}
-                        >
+                        <td className={cn("py-3 tabular-nums", co2Alert && "font-medium text-warning")}>
                           {r.co2 !== null ? formatInt(r.co2) : "—"}
                         </td>
                         <td className="py-3">
                           {r.cleanliness ? (
-                            <Badge
-                              variant={CLEANLINESS_VARIANT[r.cleanliness] ?? "secondary"}
-                              className="text-xs"
-                            >
+                            <Badge variant={CLEANLINESS_VARIANT[r.cleanliness] ?? "secondary"} className="text-xs">
                               {CLEANLINESS_LABEL[r.cleanliness] ?? r.cleanliness}
                             </Badge>
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
                         </td>
-                        <td className="py-3 max-w-xs truncate text-muted-foreground">
-                          {r.notes ?? "—"}
-                        </td>
+                        <td className="py-3 max-w-xs truncate text-muted-foreground">{r.notes ?? "—"}</td>
+                        {canEdit && (
+                          <td className="py-3">
+                            <ReadingRowActions
+                              reading={{
+                                id: r.id,
+                                dayNumber: r.dayNumber,
+                                temperature: r.temperature ? Number(r.temperature) : null,
+                                humidity: r.humidity ? Number(r.humidity) : null,
+                                co2: r.co2,
+                                cleanliness: r.cleanliness,
+                                notes: r.notes,
+                              }}
+                            />
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
