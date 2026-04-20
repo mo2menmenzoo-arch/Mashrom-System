@@ -1,15 +1,21 @@
 import { ArrowDownCircle, ArrowUpCircle, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
+import { auth } from "@/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getCustodyBalance, CUSTODY_LOW_THRESHOLD } from "@/lib/custody";
 import { formatEGP, formatDate, formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { DepositForm, WithdrawalForm } from "./custody-form";
+import { DepositRowActions, WithdrawalRowActions } from "./custody-row-actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function CustodyPage() {
+  const session = await auth();
+  const role = session?.user?.role;
+  const canEdit = role === "ADMIN" || role === "ACCOUNTANT";
+
   const activeCycle = await prisma.cycle.findFirst({
     where: { status: "ACTIVE" },
     orderBy: { startDate: "desc" },
@@ -54,20 +60,11 @@ export default async function CustodyPage() {
             <Wallet className={cn("h-6 w-6", isLow ? "text-warning" : "text-success")} />
             <div>
               <p className="text-xs text-muted-foreground">الرصيد الإجمالي</p>
-              <p
-                className={cn(
-                  "text-xl font-bold tabular-nums",
-                  isLow ? "text-warning" : "text-success",
-                )}
-              >
+              <p className={cn("text-xl font-bold tabular-nums", isLow ? "text-warning" : "text-success")}>
                 {formatEGP(balance)}
               </p>
             </div>
-            {isLow && (
-              <Badge variant="warning" className="mr-2 text-xs">
-                رصيد منخفض
-              </Badge>
-            )}
+            {isLow && <Badge variant="warning" className="mr-2 text-xs">رصيد منخفض</Badge>}
           </CardContent>
         </Card>
       </div>
@@ -80,11 +77,8 @@ export default async function CustodyPage() {
               إيداع في العهدة
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <DepositForm cycleId={activeCycle.id} />
-          </CardContent>
+          <CardContent><DepositForm cycleId={activeCycle.id} /></CardContent>
         </Card>
-
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base text-destructive">
@@ -92,9 +86,7 @@ export default async function CustodyPage() {
               صرف من العهدة
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <WithdrawalForm cycleId={activeCycle.id} balance={balance} />
-          </CardContent>
+          <CardContent><WithdrawalForm cycleId={activeCycle.id} balance={balance} /></CardContent>
         </Card>
       </div>
 
@@ -112,19 +104,27 @@ export default async function CustodyPage() {
             ) : (
               <div className="space-y-2">
                 {deposits.map((d) => (
-                  <div
-                    key={d.id}
-                    className="flex items-center justify-between rounded-md border p-3 text-sm"
-                  >
+                  <div key={d.id}
+                    className="flex items-center justify-between rounded-md border p-3 text-sm">
                     <div>
-                      <p className="tabular-nums text-muted-foreground text-xs">
-                        {formatDate(d.date)}
-                      </p>
+                      <p className="tabular-nums text-muted-foreground text-xs">{formatDate(d.date)}</p>
                       {d.notes && <p className="text-xs text-muted-foreground">{d.notes}</p>}
                     </div>
-                    <span className="font-medium tabular-nums text-success">
-                      +{formatEGP(Number(d.amount))}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium tabular-nums text-success">
+                        +{formatEGP(Number(d.amount))}
+                      </span>
+                      {canEdit && (
+                        <DepositRowActions
+                          deposit={{
+                            id: d.id,
+                            date: d.date.toISOString().slice(0, 10),
+                            amount: Number(d.amount),
+                            notes: d.notes,
+                          }}
+                        />
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -145,19 +145,27 @@ export default async function CustodyPage() {
             ) : (
               <div className="space-y-2">
                 {withdrawals.map((w) => (
-                  <div
-                    key={w.id}
-                    className="flex items-center justify-between rounded-md border p-3 text-sm"
-                  >
+                  <div key={w.id}
+                    className="flex items-center justify-between rounded-md border p-3 text-sm">
                     <div>
-                      <p className="tabular-nums text-muted-foreground text-xs">
-                        {formatDate(w.date)}
-                      </p>
+                      <p className="tabular-nums text-muted-foreground text-xs">{formatDate(w.date)}</p>
                       <p className="text-xs">{w.description}</p>
                     </div>
-                    <span className="font-medium tabular-nums text-destructive">
-                      -{formatEGP(Number(w.amount))}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium tabular-nums text-destructive">
+                        -{formatEGP(Number(w.amount))}
+                      </span>
+                      {canEdit && (
+                        <WithdrawalRowActions
+                          withdrawal={{
+                            id: w.id,
+                            date: w.date.toISOString().slice(0, 10),
+                            description: w.description,
+                            amount: Number(w.amount),
+                          }}
+                        />
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
