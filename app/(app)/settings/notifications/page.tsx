@@ -1,6 +1,4 @@
-import { redirect } from "next/navigation";
 import { Bell } from "lucide-react";
-import { auth } from "@/auth";
 import {
   Card,
   CardContent,
@@ -13,9 +11,6 @@ import { NotificationsToggle } from "./notifications-toggle";
 export const dynamic = "force-dynamic";
 
 export default async function NotificationsPage() {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") redirect("/dashboard");
-
   return (
     <div className="space-y-6">
       <div>

@@ -1,6 +1,4 @@
-import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { UsersTable } from "./users-table";
@@ -8,8 +6,6 @@ import { UsersTable } from "./users-table";
 export const dynamic = "force-dynamic";
 
 export default async function UsersPage() {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") redirect("/dashboard");
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
