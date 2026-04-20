@@ -56,7 +56,8 @@ export function Sidebar({ role }: { role: Role }) {
       <nav className="flex flex-col gap-1 p-3">
         {items.map((item) => {
           const active =
-            pathname === item.href || pathname?.startsWith(item.href + "/");
+            pathname === item.href ||
+            (item.href !== "/settings" && pathname?.startsWith(item.href + "/"));
           const Icon = item.icon;
           return (
             <Link
