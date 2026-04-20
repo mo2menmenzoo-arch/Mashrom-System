@@ -1,15 +1,21 @@
 import { Plus } from "lucide-react";
 import { prisma } from "@/lib/db";
+import { auth } from "@/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatEGP, formatDate, formatInt } from "@/lib/format";
 import { getCycleBalances } from "@/lib/inventory";
 import { SaleForm } from "./sale-form";
 import { PaymentForm } from "./payment-form";
+import { SaleRowActions } from "./sale-row-actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function SalesPage() {
+  const session = await auth();
+  const role = session?.user?.role;
+  const canEdit = role === "ADMIN" || role === "ACCOUNTANT";
+
   const activeCycle = await prisma.cycle.findFirst({
     where: { status: "ACTIVE" },
     orderBy: { startDate: "desc" },
@@ -46,6 +52,12 @@ export default async function SalesPage() {
     name: item.name,
     unit: item.unit,
     balance: Number(balances.get(item.id) ?? 0),
+  }));
+
+  const inventoryForActions = inventoryItems.map((item) => ({
+    id: item.id,
+    name: item.name,
+    unit: item.unit,
   }));
 
   const totalRevenue = sales.reduce((sum, s) => sum + Number(s.total), 0);
@@ -109,6 +121,7 @@ export default async function SalesPage() {
                     <th className="py-2 font-medium">المدفوع</th>
                     <th className="py-2 font-medium">المتبقي</th>
                     <th className="py-2"></th>
+                    {canEdit && <th className="py-2 font-medium">إجراءات</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -127,9 +140,7 @@ export default async function SalesPage() {
                         <td className="py-3 tabular-nums">{formatEGP(Number(s.paid))}</td>
                         <td className="py-3 tabular-nums">
                           {isPaid ? (
-                            <Badge variant="success" className="text-xs">
-                              مدفوع
-                            </Badge>
+                            <Badge variant="success" className="text-xs">مدفوع</Badge>
                           ) : (
                             <span className="font-medium text-warning tabular-nums">
                               {formatEGP(remaining)}
@@ -137,10 +148,24 @@ export default async function SalesPage() {
                           )}
                         </td>
                         <td className="py-3">
-                          {!isPaid && (
-                            <PaymentForm saleId={s.id} remaining={remaining} />
-                          )}
+                          {!isPaid && <PaymentForm saleId={s.id} remaining={remaining} />}
                         </td>
+                        {canEdit && (
+                          <td className="py-3">
+                            <SaleRowActions
+                              sale={{
+                                id: s.id,
+                                date: s.date.toISOString().slice(0, 10),
+                                customerName: s.customerName,
+                                cartons: s.cartons,
+                                pricePerCarton: Number(s.pricePerCarton),
+                                paid: Number(s.paid),
+                                inventoryItemId: s.inventoryItemId,
+                              }}
+                              inventoryItems={inventoryForActions}
+                            />
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
