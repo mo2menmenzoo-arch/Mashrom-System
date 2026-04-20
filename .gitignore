@@ -46,3 +46,6 @@ prisma/dev.db-journal
 .idea
 
 .vercel
+
+# git worktrees
+.worktrees
