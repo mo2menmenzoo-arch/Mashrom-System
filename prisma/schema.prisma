@@ -59,6 +59,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  organizationId String?
+  organization   Organization?    @relation(fields: [organizationId], references: [id])
+  preferences    UserPreferences?
+
   accounts      Account[]
   auditLogs     AuditLog[]
   subscriptions PushSubscription[]
@@ -253,4 +257,54 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String   @default("الصوبة الرئيسية")
+  createdAt DateTime @default(now())
+
+  users              User[]
+  greenhouseSettings GreenhouseSettings?
+  financialSettings  FinancialSettings?
+  partners           Partner[]
+}
+
+model GreenhouseSettings {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  temperature    Float        @default(22)
+  humidity       Float        @default(85)
+  cycleDuration  Int          @default(60)
+  updatedAt      DateTime     @updatedAt
+}
+
+model FinancialSettings {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  currency       String       @default("EGP")
+  taxRate        Float        @default(0)
+  updatedAt      DateTime     @updatedAt
+}
+
+model Partner {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  sharePercent   Float
+  position       Int          @default(0)
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, position])
+}
+
+model UserPreferences {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme     String   @default("light")
+  updatedAt DateTime @updatedAt
 }
