@@ -135,3 +135,34 @@ export async function updateOperationReadingAction(
     return { ok: false, error: msg };
   }
 }
+
+export async function deleteOperationReadingAction(readingId: string): Promise<ActionResult> {
+  try {
+    const user = await requireRole(perms.operationsWrite);
+
+    const reading = await prisma.operationReading.findUnique({ where: { id: readingId } });
+    if (!reading) return { ok: false, error: "القراءة غير موجودة" };
+
+    await assertCycleOpen(reading.cycleId, { userRole: user.role });
+
+    await withAudit({
+      userId: user.id,
+      action: AuditAction.DELETE,
+      entity: "OperationReading",
+      entityId: () => readingId,
+      before: {
+        date: reading.date,
+        temperature: reading.temperature,
+        humidity: reading.humidity,
+        co2: reading.co2,
+      },
+      mutate: (tx) => tx.operationReading.delete({ where: { id: readingId } }),
+    });
+
+    revalidatePath("/operations");
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "خطأ غير متوقع";
+    return { ok: false, error: msg };
+  }
+}
