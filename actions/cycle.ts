@@ -32,6 +32,17 @@ export async function createCycleAction(
       return { ok: false, error: "بيانات غير صحيحة" };
     }
 
+    const existingActive = await prisma.cycle.findFirst({
+      where: { status: CycleStatus.ACTIVE },
+      select: { number: true },
+    });
+    if (existingActive) {
+      return {
+        ok: false,
+        error: `يوجد دورة نشطة بالفعل (دورة ${existingActive.number}) — أغلقها أولاً قبل إنشاء دورة جديدة`,
+      };
+    }
+
     const last = await prisma.cycle.findFirst({
       orderBy: { number: "desc" },
       select: { number: true },
