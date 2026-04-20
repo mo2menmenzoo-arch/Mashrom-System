@@ -76,26 +76,30 @@ export async function exportAllDataAction(): Promise<SettingsResult & { csv?: st
   const session = await auth();
   if (session?.user?.role !== "ADMIN") return { success: false, error: "غير مصرح" };
 
-  const [sales, expenses, custody, inventory] = await Promise.all([
+  const [sales, expenses, deposits, withdrawals, inventory] = await Promise.all([
     prisma.sale.findMany({ include: { cycle: { select: { number: true } } }, orderBy: { date: "desc" } }),
     prisma.expense.findMany({ include: { cycle: { select: { number: true } } }, orderBy: { date: "desc" } }),
-    prisma.custodyTransaction.findMany({ orderBy: { date: "desc" } }),
-    prisma.inventoryItem.findMany({ orderBy: { number: "desc" } }),
+    prisma.custodyDeposit.findMany({ orderBy: { date: "desc" } }),
+    prisma.custodyWithdrawal.findMany({ orderBy: { date: "desc" } }),
+    prisma.inventoryItem.findMany({ orderBy: { createdAt: "desc" } }),
   ]);
 
   const rows: string[] = ["النوع,التاريخ,الوصف,المبلغ,الدورة"];
 
   for (const s of sales) {
-    rows.push(`مبيعات,${s.date.toISOString().slice(0, 10)},"${s.customerName}",${s.totalPrice},${s.cycle.number}`);
+    rows.push(`مبيعات,${s.date.toISOString().slice(0, 10)},"${s.customerName}",${s.total},${s.cycle.number}`);
   }
   for (const e of expenses) {
     rows.push(`مصروف,${e.date.toISOString().slice(0, 10)},"${e.description}",${e.amount},${e.cycle.number}`);
   }
-  for (const c of custody) {
-    rows.push(`عهدة,${c.date.toISOString().slice(0, 10)},"${c.description ?? ""}",${c.type === "DEPOSIT" ? c.amount : -c.amount},-`);
+  for (const d of deposits) {
+    rows.push(`إيداع عهدة,${d.date.toISOString().slice(0, 10)},"${d.notes ?? ""}",${d.amount},-`);
+  }
+  for (const w of withdrawals) {
+    rows.push(`صرف عهدة,${w.date.toISOString().slice(0, 10)},"${w.description}",-${w.amount},-`);
   }
   for (const i of inventory) {
-    rows.push(`مخزن,-,"${i.name}",${i.currentQty},-`);
+    rows.push(`مخزن,-,"${i.name}",${i.initialQty},-`);
   }
 
   return { success: true, csv: rows.join("\n") };
