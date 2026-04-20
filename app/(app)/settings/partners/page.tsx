@@ -1,8 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PieChart } from "lucide-react";
+import { getOrgSettingsAction } from "@/actions/settings";
 import { PartnerSharesForm } from "./partners-form";
 
-export default function PartnersPage() {
+export default async function PartnersPage() {
+  const { partners } = await getOrgSettingsAction();
   return (
     <div className="space-y-6">
       <div>
@@ -20,7 +22,7 @@ export default function PartnersPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <PartnerSharesForm />
+          <PartnerSharesForm initialPartners={partners} />
         </CardContent>
       </Card>
     </div>
