@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
+import * as XLSX from "xlsx";
 
 export type SettingsResult = { success: true } | { success: false; error: string };
 
@@ -247,4 +248,123 @@ export async function updateThemePreferenceAction(theme: "light" | "dark"): Prom
     update: { theme },
   });
   return { success: true };
+}
+
+// ─── Excel export ────────────────────────────────────────────────────────────
+
+export async function exportExcelAction(): Promise<SettingsResult & { base64?: string }> {
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") return { success: false, error: "غير مصرح" };
+
+  const [sales, expenses, deposits, withdrawals, inventory] = await Promise.all([
+    prisma.sale.findMany({ include: { cycle: { select: { number: true } } }, orderBy: { date: "desc" } }),
+    prisma.expense.findMany({ include: { cycle: { select: { number: true } } }, orderBy: { date: "desc" } }),
+    prisma.custodyDeposit.findMany({ orderBy: { date: "desc" } }),
+    prisma.custodyWithdrawal.findMany({ orderBy: { date: "desc" } }),
+    prisma.inventoryItem.findMany({ orderBy: { createdAt: "desc" } }),
+  ]);
+
+  const wb = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      sales.map((s) => ({
+        التاريخ: s.date.toISOString().slice(0, 10),
+        العميل: s.customerName,
+        الكراتين: s.cartons,
+        "سعر الكرتون": Number(s.pricePerCarton),
+        الإجمالي: Number(s.total),
+        المدفوع: Number(s.paid),
+        الدورة: s.cycle.number,
+      })),
+    ),
+    "مبيعات",
+  );
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      expenses.map((e) => ({
+        التاريخ: e.date.toISOString().slice(0, 10),
+        الوصف: e.description,
+        المبلغ: Number(e.amount),
+        الدورة: e.cycle.number,
+      })),
+    ),
+    "مصروفات",
+  );
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      deposits.map((d) => ({
+        التاريخ: d.date.toISOString().slice(0, 10),
+        المبلغ: Number(d.amount),
+        ملاحظات: d.notes ?? "",
+      })),
+    ),
+    "إيداعات",
+  );
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      withdrawals.map((w) => ({
+        التاريخ: w.date.toISOString().slice(0, 10),
+        الوصف: w.description,
+        المبلغ: Number(w.amount),
+      })),
+    ),
+    "صرفيات",
+  );
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      inventory.map((i) => ({
+        الاسم: i.name,
+        "الكمية الأولية": Number(i.initialQty),
+        الوحدة: i.unit,
+      })),
+    ),
+    "مخزن",
+  );
+
+  const base64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
+  return { success: true, base64 };
+}
+
+// ─── Print data ───────────────────────────────────────────────────────────────
+
+export type PrintData = {
+  sales: { date: string; customerName: string; cartons: number; total: number; cycle: number }[];
+  expenses: { date: string; description: string; amount: number; cycle: number }[];
+  deposits: { date: string; amount: number; notes: string }[];
+  withdrawals: { date: string; description: string; amount: number }[];
+  inventory: { name: string; initialQty: number; unit: string }[];
+};
+
+export async function getPrintDataAction(): Promise<SettingsResult & { data?: PrintData }> {
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") return { success: false, error: "غير مصرح" };
+
+  const [sales, expenses, deposits, withdrawals, inventory] = await Promise.all([
+    prisma.sale.findMany({ include: { cycle: { select: { number: true } } }, orderBy: { date: "desc" } }),
+    prisma.expense.findMany({ include: { cycle: { select: { number: true } } }, orderBy: { date: "desc" } }),
+    prisma.custodyDeposit.findMany({ orderBy: { date: "desc" } }),
+    prisma.custodyWithdrawal.findMany({ orderBy: { date: "desc" } }),
+    prisma.inventoryItem.findMany({ orderBy: { createdAt: "desc" } }),
+  ]);
+
+  return {
+    success: true,
+    data: {
+      sales: sales.map((s) => ({ date: s.date.toISOString().slice(0, 10), customerName: s.customerName, cartons: s.cartons, total: Number(s.total), cycle: s.cycle.number })),
+      expenses: expenses.map((e) => ({ date: e.date.toISOString().slice(0, 10), description: e.description, amount: Number(e.amount), cycle: e.cycle.number })),
+      deposits: deposits.map((d) => ({ date: d.date.toISOString().slice(0, 10), amount: Number(d.amount), notes: d.notes ?? "" })),
+      withdrawals: withdrawals.map((w) => ({ date: w.date.toISOString().slice(0, 10), description: w.description, amount: Number(w.amount) })),
+      inventory: inventory.map((i) => ({ name: i.name, initialQty: Number(i.initialQty), unit: i.unit })),
+    },
+  };
 }
