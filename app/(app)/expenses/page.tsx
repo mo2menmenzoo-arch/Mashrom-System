@@ -1,13 +1,19 @@
 import { Plus, PackageCheck } from "lucide-react";
 import { prisma } from "@/lib/db";
+import { auth } from "@/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatEGP, formatDate, formatInt } from "@/lib/format";
 import { ExpenseForm } from "./expense-form";
+import { ExpenseRowActions } from "./expense-row-actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function ExpensesPage() {
+  const session = await auth();
+  const role = session?.user?.role;
+  const canEdit = role === "ADMIN" || role === "OPERATOR";
+
   const activeCycle = await prisma.cycle.findFirst({
     where: { status: "ACTIVE" },
     orderBy: { startDate: "desc" },
@@ -79,6 +85,7 @@ export default async function ExpensesPage() {
                     <th className="py-2 font-medium">الوصف</th>
                     <th className="py-2 font-medium">المبلغ</th>
                     <th className="py-2 font-medium">مخزن</th>
+                    {canEdit && <th className="py-2 font-medium">إجراءات</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -99,6 +106,19 @@ export default async function ExpensesPage() {
                           <span className="text-muted-foreground text-xs">—</span>
                         )}
                       </td>
+                      {canEdit && (
+                        <td className="py-3">
+                          <ExpenseRowActions
+                            expense={{
+                              id: e.id,
+                              date: e.date.toISOString().slice(0, 10),
+                              description: e.description,
+                              amount: Number(e.amount),
+                              hasInventory: !!e.inventoryItem,
+                            }}
+                          />
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
