@@ -104,3 +104,147 @@ export async function exportAllDataAction(): Promise<SettingsResult & { csv?: st
 
   return { success: true, csv: rows.join("\n") };
 }
+
+// ─── Org helpers ────────────────────────────────────────────────────────────
+
+const DEFAULT_ORG_ID = "default-org";
+
+export type OrgSettings = {
+  greenhouse: { temperature: number; humidity: number; cycleDuration: number };
+  financial: { currency: string; taxRate: number };
+  partners: { id: string; name: string; sharePercent: number; position: number }[];
+};
+
+export async function getOrgSettingsAction(): Promise<OrgSettings> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("غير مصرح");
+
+  const [gh, fin, partners] = await Promise.all([
+    prisma.greenhouseSettings.upsert({
+      where: { organizationId: DEFAULT_ORG_ID },
+      create: { organizationId: DEFAULT_ORG_ID },
+      update: {},
+    }),
+    prisma.financialSettings.upsert({
+      where: { organizationId: DEFAULT_ORG_ID },
+      create: { organizationId: DEFAULT_ORG_ID },
+      update: {},
+    }),
+    prisma.partner.findMany({
+      where: { organizationId: DEFAULT_ORG_ID },
+      orderBy: { position: "asc" },
+    }),
+  ]);
+
+  return {
+    greenhouse: { temperature: gh.temperature, humidity: gh.humidity, cycleDuration: gh.cycleDuration },
+    financial: { currency: fin.currency, taxRate: fin.taxRate },
+    partners: partners.map((p) => ({ id: p.id, name: p.name, sharePercent: p.sharePercent, position: p.position })),
+  };
+}
+
+// ─── Greenhouse ──────────────────────────────────────────────────────────────
+
+const greenhouseSchema = z.object({
+  temperature: z.coerce.number().min(0).max(50),
+  humidity: z.coerce.number().min(0).max(100),
+  cycleDuration: z.coerce.number().int().min(1).max(365),
+});
+
+export async function updateGreenhouseSettingsAction(
+  _prev: SettingsResult | undefined,
+  formData: FormData,
+): Promise<SettingsResult> {
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") return { success: false, error: "غير مصرح" };
+
+  const parsed = greenhouseSchema.safeParse({
+    temperature: formData.get("temperature"),
+    humidity: formData.get("humidity"),
+    cycleDuration: formData.get("cycleDuration"),
+  });
+  if (!parsed.success) return { success: false, error: parsed.error.errors[0].message };
+
+  await prisma.greenhouseSettings.upsert({
+    where: { organizationId: DEFAULT_ORG_ID },
+    create: { organizationId: DEFAULT_ORG_ID, ...parsed.data },
+    update: parsed.data,
+  });
+  revalidatePath("/settings/greenhouse");
+  return { success: true };
+}
+
+// ─── Financial ───────────────────────────────────────────────────────────────
+
+const financialSchema = z.object({
+  currency: z.enum(["EGP", "USD"]),
+  taxRate: z.coerce.number().min(0).max(100),
+});
+
+export async function updateFinancialSettingsAction(
+  _prev: SettingsResult | undefined,
+  formData: FormData,
+): Promise<SettingsResult> {
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") return { success: false, error: "غير مصرح" };
+
+  const parsed = financialSchema.safeParse({
+    currency: formData.get("currency"),
+    taxRate: formData.get("taxRate"),
+  });
+  if (!parsed.success) return { success: false, error: parsed.error.errors[0].message };
+
+  await prisma.financialSettings.upsert({
+    where: { organizationId: DEFAULT_ORG_ID },
+    create: { organizationId: DEFAULT_ORG_ID, ...parsed.data },
+    update: parsed.data,
+  });
+  revalidatePath("/settings/financial");
+  return { success: true };
+}
+
+// ─── Partners ────────────────────────────────────────────────────────────────
+
+const partnersSchema = z.array(
+  z.object({
+    name: z.string().trim().min(1, "اسم الشريك مطلوب"),
+    sharePercent: z.number().min(0).max(100),
+    position: z.number().int().min(0),
+  }),
+);
+
+export async function updatePartnersAction(
+  partners: { name: string; sharePercent: number; position: number }[],
+): Promise<SettingsResult> {
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") return { success: false, error: "غير مصرح" };
+
+  const parsed = partnersSchema.safeParse(partners);
+  if (!parsed.success) return { success: false, error: parsed.error.errors[0].message };
+
+  const total = parsed.data.reduce((s, p) => s + p.sharePercent, 0);
+  if (total > 100) return { success: false, error: "إجمالي النسب يتجاوز 100%" };
+
+  await prisma.$transaction([
+    prisma.partner.deleteMany({ where: { organizationId: DEFAULT_ORG_ID } }),
+    prisma.partner.createMany({
+      data: parsed.data.map((p) => ({ ...p, organizationId: DEFAULT_ORG_ID })),
+    }),
+  ]);
+  revalidatePath("/settings/partners");
+  return { success: true };
+}
+
+// ─── Theme preference ────────────────────────────────────────────────────────
+
+export async function updateThemePreferenceAction(theme: "light" | "dark"): Promise<SettingsResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: "غير مصرح" };
+
+  await prisma.userPreferences.upsert({
+    where: { userId: session.user.id },
+    create: { userId: session.user.id, theme },
+    update: { theme },
+  });
+  return { success: true };
+}
