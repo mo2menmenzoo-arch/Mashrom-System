@@ -150,3 +150,54 @@ export async function deleteExpenseAction(
     return { ok: false, error: msg };
   }
 }
+
+const updateExpenseSchema = z.object({
+  date: z.coerce.date(),
+  description: z.string().trim().min(1).max(200),
+  amount: z.coerce.number().positive(),
+});
+
+export async function updateExpenseAction(
+  expenseId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const user = await requireRole(perms.expenseWrite);
+
+    const expense = await prisma.expense.findUnique({ where: { id: expenseId } });
+    if (!expense) return { ok: false, error: "المصروف غير موجود" };
+
+    await assertCycleOpen(expense.cycleId, { userRole: user.role });
+
+    const parsed = updateExpenseSchema.safeParse({
+      date: formData.get("date"),
+      description: formData.get("description"),
+      amount: formData.get("amount"),
+    });
+    if (!parsed.success) return { ok: false, error: "بيانات غير صحيحة" };
+
+    await withAudit({
+      userId: user.id,
+      action: AuditAction.UPDATE,
+      entity: "Expense",
+      entityId: () => expenseId,
+      before: { description: expense.description, amount: expense.amount },
+      mutate: (tx) =>
+        tx.expense.update({
+          where: { id: expenseId },
+          data: {
+            date: parsed.data.date,
+            description: parsed.data.description,
+            amount: parsed.data.amount,
+          },
+        }),
+    });
+
+    revalidatePath("/expenses");
+    revalidatePath("/dashboard");
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "خطأ غير متوقع";
+    return { ok: false, error: msg };
+  }
+}
