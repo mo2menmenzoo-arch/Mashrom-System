@@ -53,7 +53,7 @@ export default async function CustodyPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">العهدة</h1>
-          <p className="text-sm text-muted-foreground">دورة {formatInt(activeCycle.number)}</p>
+          <p className="text-sm text-muted-foreground">حركات العهدة</p>
         </div>
         <Card className={cn("border-2", isLow ? "border-warning" : "border-success")}>
           <CardContent className="flex items-center gap-3 p-4">

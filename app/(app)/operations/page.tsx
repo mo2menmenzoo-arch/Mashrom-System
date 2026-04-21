@@ -65,7 +65,7 @@ export default async function OperationsPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">جدول التشغيل</h1>
-          <p className="text-sm text-muted-foreground">دورة {formatInt(activeCycle.number)}</p>
+          <p className="text-sm text-muted-foreground">القراءات اليومية للدورة</p>
         </div>
         <div className="text-xs text-muted-foreground space-y-1 text-left">
           <p>نطاق آمن: حرارة {TEMP_MIN}–{TEMP_MAX}°م · رطوبة {HUMIDITY_MIN}–{HUMIDITY_MAX}٪ · CO₂ &lt;{CO2_MAX}ppm</p>
@@ -93,15 +93,15 @@ export default async function OperationsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b text-right text-xs text-muted-foreground">
-                  <tr>
-                    <th className="py-2 font-medium">اليوم</th>
-                    <th className="py-2 font-medium">التاريخ</th>
-                    <th className="py-2 font-medium">الحرارة (°م)</th>
-                    <th className="py-2 font-medium">الرطوبة (%)</th>
-                    <th className="py-2 font-medium">CO₂ (ppm)</th>
-                    <th className="py-2 font-medium">النظافة</th>
-                    <th className="py-2 font-medium">ملاحظات</th>
-                    {canEdit && <th className="py-2 font-medium">إجراءات</th>}
+                  <tr className="bg-muted/50 hover:bg-muted/50">
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">اليوم</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">التاريخ</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">الحرارة (°م)</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">الرطوبة (%)</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">CO₂ (ppm)</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">النظافة</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">ملاحظات</th>
+                    {canEdit && <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">إجراءات</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -111,7 +111,7 @@ export default async function OperationsPage() {
                     const co2Alert = isCo2Alert(r.co2);
                     const hasAlert = tempAlert || humidAlert || co2Alert;
                     return (
-                      <tr key={r.id} className={cn("border-b last:border-0 hover:bg-muted/40", hasAlert && "bg-warning/5")}>
+                      <tr key={r.id} className={cn("border-b last:border-0 hover:bg-accent/50 transition-colors", hasAlert && "bg-warning/5")}>
                         <td className="py-3 tabular-nums font-medium">
                           <span className="flex items-center gap-1">
                             {hasAlert && <AlertTriangle className="h-3 w-3 text-warning" />}

@@ -58,7 +58,7 @@ export default async function InventoryPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">المخزن</h1>
-          <p className="text-sm text-muted-foreground">دورة {formatInt(activeCycle.number)}</p>
+          <p className="text-sm text-muted-foreground">مخزون الدورة الحالية</p>
         </div>
         {alertCount > 0 && (
           <Badge variant="warning" className="gap-1">
@@ -84,13 +84,13 @@ export default async function InventoryPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b text-right text-xs text-muted-foreground">
-                  <tr>
-                    <th className="py-2 font-medium">الصنف</th>
-                    <th className="py-2 font-medium">الرصيد الحالي</th>
-                    <th className="py-2 font-medium">الوحدة</th>
-                    <th className="py-2 font-medium">المصدر</th>
-                    <th className="py-2 font-medium">تاريخ الانتهاء</th>
-                    <th className="py-2 font-medium">الحالة</th>
+                  <tr className="bg-muted/50 hover:bg-muted/50">
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">الصنف</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">الرصيد الحالي</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">الوحدة</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">المصدر</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">تاريخ الانتهاء</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">الحالة</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -98,7 +98,7 @@ export default async function InventoryPage() {
                     <tr
                       key={item.id}
                       className={cn(
-                        "border-b last:border-0 hover:bg-muted/40",
+                        "border-b last:border-0 hover:bg-accent/50 transition-colors",
                         item.isExpired && "bg-destructive/5",
                       )}
                     >
