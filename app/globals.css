@@ -35,6 +35,10 @@
     --input: 150 10% 88%;
     --ring: 150 55% 32%;
 
+    --shadow-card: 0 2px 12px rgba(0,0,0,0.07);
+    --shadow-card-hover: 0 4px 20px rgba(0,0,0,0.12);
+    --radius-lg: 1rem;
+
     --radius: 0.625rem;
   }
 
@@ -60,6 +64,10 @@
     --border: 150 10% 18%;
     --input: 150 10% 18%;
     --ring: 150 55% 45%;
+
+    --shadow-card: 0 2px 16px rgba(0,0,0,0.25);
+    --shadow-card-hover: 0 4px 24px rgba(0,0,0,0.35);
+    --radius-lg: 1rem;
   }
 }
 
@@ -74,4 +82,9 @@
   .nums-arabic { font-feature-settings: "lnum"; font-variant-numeric: tabular-nums; }
   /* Keep numbers Latin in tables/financials for clarity */
   .nums-latin { font-variant-numeric: tabular-nums; }
+}
+
+@layer utilities {
+  .shadow-card { box-shadow: var(--shadow-card); }
+  .shadow-card-hover { box-shadow: var(--shadow-card-hover); }
 }
