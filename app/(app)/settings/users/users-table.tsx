@@ -8,7 +8,7 @@ import { updateUserRole, toggleUserActive } from "./actions";
 
 type User = {
   id: string;
-  name: string;
+  name: string | null;
   email: string;
   role: Role;
   active: boolean;
