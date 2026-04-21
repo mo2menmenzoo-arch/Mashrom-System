@@ -3,19 +3,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ActionToast } from "@/components/ui/action-toast";
 import { Trash2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { updatePartnersAction } from "@/actions/settings";
 
 type Partner = { id: string; name: string; sharePercent: number };
-
-function Toast({ msg, ok }: { msg: string; ok: boolean }) {
-  return (
-    <div className={`rounded-lg px-4 py-2 text-sm font-medium ${ok ? "bg-green-500/10 text-green-600" : "bg-destructive/10 text-destructive"}`}>
-      {msg}
-    </div>
-  );
-}
 
 export function PartnerSharesForm({ initialPartners }: { initialPartners: Partner[] }) {
   const [partners, setPartners] = useState<Partner[]>(
@@ -109,7 +102,7 @@ export function PartnerSharesForm({ initialPartners }: { initialPartners: Partne
         {total === 100 && <span>✓ مكتمل</span>}
       </div>
 
-      {toast && <Toast msg={toast.msg} ok={toast.ok} />}
+      <ActionToast toast={toast} />
 
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={overLimit || saving}>
