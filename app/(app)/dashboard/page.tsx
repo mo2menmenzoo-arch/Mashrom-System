@@ -57,17 +57,25 @@ export default async function DashboardPage() {
       </div>
 
       {/* Cycle progress bar */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="mb-2 flex justify-between text-sm">
-            <span>تقدّم الدورة</span>
-            <span className="tabular-nums">{c.progressPct}٪</span>
+      <Card className="shadow-card">
+        <CardContent className="p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-medium">تقدّم الدورة</span>
+            <div className="text-left">
+              <span className="text-2xl font-bold tabular-nums text-primary">{c.progressPct}</span>
+              <span className="text-sm text-muted-foreground">٪</span>
+            </div>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+          <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
             <div
-              className="h-full rounded-full bg-primary transition-all"
+              className="h-full rounded-full bg-gradient-to-l from-primary to-primary/70 transition-all"
               style={{ width: `${c.progressPct}%` }}
             />
+          </div>
+          <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
+            <span>بداية</span>
+            <span>منتصف</span>
+            <span>نهاية</span>
           </div>
         </CardContent>
       </Card>
@@ -116,9 +124,9 @@ export default async function DashboardPage() {
                 key={a.id}
                 href={a.href ?? "#"}
                 className={cn(
-                  "flex items-center justify-between rounded-md border p-3 text-sm transition-colors hover:bg-accent",
-                  a.level === "destructive" && "border-destructive/30 bg-destructive/5",
-                  a.level === "warning" && "border-warning/40 bg-warning/5",
+                  "flex items-center justify-between rounded-md border border-r-4 p-3 text-sm transition-all hover:bg-accent hover:translate-x-0.5",
+                  a.level === "destructive" && "border-r-destructive border-destructive/20 bg-destructive/5",
+                  a.level === "warning" && "border-r-warning border-warning/20 bg-warning/5",
                 )}
               >
                 <span>{a.message}</span>
@@ -130,33 +138,41 @@ export default async function DashboardPage() {
       )}
 
       {/* Quick Add */}
-      <Card>
+      <Card className="shadow-card">
         <CardHeader>
           <CardTitle className="text-base">إضافة سريعة</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button asChild>
+        <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Button asChild variant="outline" className="h-auto flex-col gap-2 py-4">
             <Link href="/expenses">
-              <Plus className="h-4 w-4" />
-              مصروف جديد
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+                <TrendingDown className="h-5 w-5" />
+              </span>
+              <span className="text-xs">مصروف جديد</span>
             </Link>
           </Button>
-          <Button asChild variant="secondary">
+          <Button asChild variant="outline" className="h-auto flex-col gap-2 py-4">
             <Link href="/sales">
-              <Plus className="h-4 w-4" />
-              بيع جديد
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/10 text-success">
+                <TrendingUp className="h-5 w-5" />
+              </span>
+              <span className="text-xs">بيع جديد</span>
             </Link>
           </Button>
-          <Button asChild variant="secondary">
+          <Button asChild variant="outline" className="h-auto flex-col gap-2 py-4">
             <Link href="/custody">
-              <Plus className="h-4 w-4" />
-              صرف عهدة
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10 text-warning">
+                <CircleDollarSign className="h-5 w-5" />
+              </span>
+              <span className="text-xs">صرف عهدة</span>
             </Link>
           </Button>
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" className="h-auto flex-col gap-2 py-4">
             <Link href="/operations">
-              <Plus className="h-4 w-4" />
-              قراءة اليوم
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Plus className="h-5 w-5" />
+              </span>
+              <span className="text-xs">قراءة اليوم</span>
             </Link>
           </Button>
         </CardContent>
@@ -178,21 +194,41 @@ function KpiCard({
   accent: "success" | "destructive" | "warning" | "default";
   icon?: React.ReactNode;
 }) {
-  const accentColor = {
-    success: "text-success",
-    destructive: "text-destructive",
-    warning: "text-warning",
-    default: "text-foreground",
+  const styles = {
+    success: {
+      bar: "border-t-success",
+      iconBg: "bg-success/10 text-success",
+      value: "text-success",
+    },
+    destructive: {
+      bar: "border-t-destructive",
+      iconBg: "bg-destructive/10 text-destructive",
+      value: "text-destructive",
+    },
+    warning: {
+      bar: "border-t-warning",
+      iconBg: "bg-warning/10 text-warning",
+      value: "text-warning",
+    },
+    default: {
+      bar: "border-t-border",
+      iconBg: "bg-muted text-muted-foreground",
+      value: "text-foreground",
+    },
   }[accent];
 
   return (
-    <Card>
+    <Card className={`shadow-card hover:shadow-card-hover border-t-2 transition-shadow ${styles.bar}`}>
       <CardContent className="p-5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between">
           <p className="text-sm text-muted-foreground">{label}</p>
-          <span className={accentColor}>{icon}</span>
+          {icon && (
+            <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${styles.iconBg}`}>
+              {icon}
+            </span>
+          )}
         </div>
-        <p className={cn("mt-2 text-2xl font-bold tabular-nums", accentColor)}>{value}</p>
+        <p className={`mt-3 text-2xl font-bold tabular-nums ${styles.value}`}>{value}</p>
         {sublabel && <p className="mt-1 text-xs text-muted-foreground">{sublabel}</p>}
       </CardContent>
     </Card>
