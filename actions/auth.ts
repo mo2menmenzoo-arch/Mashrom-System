@@ -25,7 +25,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
 }
 
 export async function googleSignInAction() {
-  await signIn("google", { redirectTo: "/dashboard" });
+  await signIn("google", { redirectTo: "/dashboard", prompt: "select_account" });
 }
 
 export async function logoutAction() {

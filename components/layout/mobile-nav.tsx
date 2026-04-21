@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -54,16 +55,16 @@ const SECTIONS: NavSection[] = [
 
 export function MobileNav({ role }: { role: Role }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
 
+  useEffect(() => { setMounted(true); }, []);
   useEffect(() => { setOpen(false); }, [pathname]);
-
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
-  // Listen for clicks on the hamburger button rendered in the server topbar
   useEffect(() => {
     const btn = document.getElementById("mobile-menu-btn");
     if (!btn) return;
@@ -72,28 +73,24 @@ export function MobileNav({ role }: { role: Role }) {
     return () => btn.removeEventListener("click", handler);
   }, []);
 
-  return (
+  const drawer = (
     <>
-      {/* Full-screen backdrop — outside any sticky/fixed parent */}
+      {/* Backdrop */}
       <div
         aria-hidden="true"
-        className={cn(
-          "fixed inset-0 bg-black/70 transition-opacity duration-300 md:hidden",
-          open ? "opacity-100 z-[100]" : "opacity-0 pointer-events-none -z-10",
-        )}
         onClick={() => setOpen(false)}
+        style={{ display: open ? "block" : "none" }}
+        className="fixed inset-0 bg-black/70 z-[9998]"
       />
-
       {/* Drawer */}
       <div
         role="dialog"
         aria-modal="true"
         className={cn(
-          "fixed inset-y-0 right-0 flex w-[80vw] max-w-[300px] flex-col bg-card shadow-2xl transition-transform duration-300 ease-in-out md:hidden z-[101]",
+          "fixed inset-y-0 right-0 flex w-[80vw] max-w-[300px] flex-col bg-card shadow-2xl transition-transform duration-300 ease-in-out z-[9999]",
           open ? "translate-x-0" : "translate-x-full",
         )}
       >
-        {/* Header */}
         <div className="flex h-16 shrink-0 items-center justify-between border-b px-5">
           <div className="flex items-center gap-2">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-xl">🍄</span>
@@ -105,29 +102,24 @@ export function MobileNav({ role }: { role: Role }) {
           <button
             onClick={() => setOpen(false)}
             className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
-            aria-label="إغلاق القائمة"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Nav */}
         <nav className="flex flex-1 flex-col gap-4 overflow-y-auto p-3 pb-10">
           {SECTIONS.map((section) => {
             if (section.roles && !section.roles.includes(role)) return null;
-            const visibleItems = section.items.filter(
-              (i) => !i.roles || i.roles.includes(role),
-            );
-            if (!visibleItems.length) return null;
+            const items = section.items.filter(i => !i.roles || i.roles.includes(role));
+            if (!items.length) return null;
             return (
               <div key={section.label}>
                 <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
                   {section.label}
                 </p>
                 <div className="flex flex-col gap-0.5">
-                  {visibleItems.map((item) => {
-                    const active =
-                      pathname === item.href ||
+                  {items.map((item) => {
+                    const active = pathname === item.href ||
                       (item.href !== "/settings" && pathname?.startsWith(item.href + "/"));
                     const Icon = item.icon;
                     return (
@@ -154,4 +146,6 @@ export function MobileNav({ role }: { role: Role }) {
       </div>
     </>
   );
+
+  return mounted ? createPortal(drawer, document.body) : null;
 }
