@@ -7,7 +7,7 @@ export default function LoginPage() {
   );
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-gradient-to-br from-[hsl(150,55%,18%)] to-[hsl(150,55%,32%)] lg:bg-none lg:bg-transparent">
       {/* Hero panel — right side in RTL */}
       <div className="relative hidden flex-1 flex-col justify-center overflow-hidden bg-gradient-to-br from-[hsl(150,55%,18%)] to-[hsl(150,55%,32%)] p-12 lg:flex">
         <div className="absolute inset-0 opacity-5">
@@ -50,7 +50,7 @@ export default function LoginPage() {
       </div>
 
       {/* Form panel — left side in RTL */}
-      <div className="flex w-full flex-col items-center justify-center bg-background px-6 py-12 lg:w-[480px] lg:shrink-0">
+      <div className="flex w-full flex-col items-center justify-center px-6 py-12 lg:w-[480px] lg:shrink-0 lg:bg-background">
         <div className="mb-8 flex flex-col items-center gap-3 lg:hidden">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-3xl text-primary-foreground">
             🍄
@@ -58,8 +58,14 @@ export default function LoginPage() {
           <h1 className="text-xl font-bold">صوبة الماشروم</h1>
         </div>
 
-        <div className="w-full max-w-sm">
-          <div className="mb-8">
+        <div className="w-full max-w-sm rounded-2xl bg-white/10 p-8 shadow-2xl backdrop-blur-md lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
+          <div className="mb-8 lg:hidden">
+            <h2 className="text-2xl font-bold tracking-tight text-white">تسجيل الدخول</h2>
+            <p className="mt-1 text-sm text-white/60">
+              أدخل بياناتك للوصول إلى لوحة التحكم
+            </p>
+          </div>
+          <div className="mb-8 hidden lg:block">
             <h2 className="text-2xl font-bold tracking-tight">تسجيل الدخول</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               أدخل بياناتك للوصول إلى لوحة التحكم
