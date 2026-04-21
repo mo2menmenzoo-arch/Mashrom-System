@@ -66,10 +66,13 @@ export function Sidebar({ role }: { role: Role }) {
   return (
     <aside className="hidden w-64 shrink-0 border-l bg-card md:block">
       <div className="flex h-16 items-center gap-2 border-b px-5">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-xl shadow-sm">
           🍄
         </span>
-        <span className="font-bold">صوبة الماشروم</span>
+        <div>
+          <span className="block font-bold leading-tight">صوبة الماشروم</span>
+          <span className="block text-[10px] text-muted-foreground">نظام الإدارة</span>
+        </div>
       </div>
       <nav className="flex flex-col gap-4 p-3">
         {SECTIONS.map((section) => {
@@ -80,7 +83,7 @@ export function Sidebar({ role }: { role: Role }) {
           if (visibleItems.length === 0) return null;
           return (
             <div key={section.label}>
-              <p className="mb-1 px-3 text-xs font-semibold text-muted-foreground">
+              <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
                 {section.label}
               </p>
               <div className="flex flex-col gap-1">
@@ -97,7 +100,7 @@ export function Sidebar({ role }: { role: Role }) {
                       className={cn(
                         "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                         active
-                          ? "bg-primary text-primary-foreground"
+                          ? "border-r-2 border-primary bg-primary/8 text-primary font-semibold"
                           : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                       )}
                     >
