@@ -3,17 +3,10 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ActionToast } from "@/components/ui/action-toast";
 import { Settings, Sun, Moon, Download, Printer } from "lucide-react";
 import { exportAllDataAction, exportExcelAction, getPrintDataAction, updateThemePreferenceAction } from "@/actions/settings";
 import type { PrintData } from "@/actions/settings";
-
-function Toast({ msg, ok }: { msg: string; ok: boolean }) {
-  return (
-    <div className={`rounded-lg px-4 py-2 text-sm font-medium ${ok ? "bg-green-500/10 text-green-600" : "bg-destructive/10 text-destructive"}`}>
-      {msg}
-    </div>
-  );
-}
 
 function buildPrintHtml(data: PrintData): string {
   function table(title: string, headers: string[], rows: string[][]): string {
@@ -54,7 +47,9 @@ function buildPrintHtml(data: PrintData): string {
 
 export default function SystemPage() {
   const [dark, setDark] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [csvBusy, setCsvBusy] = useState(false);
+  const [excelBusy, setExcelBusy] = useState(false);
+  const [printBusy, setPrintBusy] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   useEffect(() => {
@@ -75,7 +70,7 @@ export default function SystemPage() {
   }
 
   async function handleExportCsv() {
-    setBusy(true);
+    setCsvBusy(true);
     try {
       const result = await exportAllDataAction();
       if (!result.success) { showToast(result.error, false); return; }
@@ -88,12 +83,12 @@ export default function SystemPage() {
       URL.revokeObjectURL(url);
       showToast("تم تصدير CSV بنجاح", true);
     } finally {
-      setBusy(false);
+      setCsvBusy(false);
     }
   }
 
   async function handleExportExcel() {
-    setBusy(true);
+    setExcelBusy(true);
     try {
       const result = await exportExcelAction();
       if (!result.success) { showToast(result.error, false); return; }
@@ -107,12 +102,12 @@ export default function SystemPage() {
       URL.revokeObjectURL(url);
       showToast("تم تصدير Excel بنجاح", true);
     } finally {
-      setBusy(false);
+      setExcelBusy(false);
     }
   }
 
   async function handlePrintPdf() {
-    setBusy(true);
+    setPrintBusy(true);
     try {
       const result = await getPrintDataAction();
       if (!result.success) { showToast(result.error, false); return; }
@@ -138,7 +133,7 @@ export default function SystemPage() {
       window.addEventListener("afterprint", cleanup);
       setTimeout(cleanup, 5000);
     } finally {
-      setBusy(false);
+      setPrintBusy(false);
     }
   }
 
@@ -181,22 +176,22 @@ export default function SystemPage() {
           <div>
             <p className="mb-3 text-sm font-semibold">تصدير البيانات</p>
             <div className="flex flex-wrap gap-3">
-              <Button variant="outline" disabled={busy} onClick={handleExportCsv}>
+              <Button variant="outline" disabled={csvBusy} onClick={handleExportCsv}>
                 <Download className="me-2 h-4 w-4" />
-                {busy ? "جارٍ التصدير…" : "تصدير CSV"}
+                {csvBusy ? "جارٍ التصدير…" : "تصدير CSV"}
               </Button>
-              <Button variant="outline" disabled={busy} onClick={handleExportExcel}>
+              <Button variant="outline" disabled={excelBusy} onClick={handleExportExcel}>
                 <Download className="me-2 h-4 w-4" />
-                {busy ? "جارٍ التصدير…" : "تصدير Excel"}
+                {excelBusy ? "جارٍ التصدير…" : "تصدير Excel"}
               </Button>
-              <Button variant="outline" disabled={busy} onClick={handlePrintPdf}>
+              <Button variant="outline" disabled={printBusy} onClick={handlePrintPdf}>
                 <Printer className="me-2 h-4 w-4" />
-                {busy ? "جارٍ التحميل…" : "طباعة / PDF"}
+                {printBusy ? "جارٍ التحميل…" : "طباعة / PDF"}
               </Button>
             </div>
           </div>
 
-          {toast && <Toast msg={toast.msg} ok={toast.ok} />}
+          <ActionToast toast={toast} />
         </CardContent>
       </Card>
     </div>
