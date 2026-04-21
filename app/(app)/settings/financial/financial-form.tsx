@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ActionToast } from "@/components/ui/action-toast";
 import { DollarSign } from "lucide-react";
 import { updateFinancialSettingsAction } from "@/actions/settings";
 
@@ -14,6 +15,10 @@ type Props = {
 
 export function FinancialForm({ defaults }: Props) {
   const [state, action, pending] = useActionState(updateFinancialSettingsAction, undefined);
+
+  const toast = state
+    ? { msg: state.success ? "تم الحفظ بنجاح" : state.error, ok: state.success }
+    : null;
 
   return (
     <Card>
@@ -54,12 +59,7 @@ export function FinancialForm({ defaults }: Props) {
               />
             </div>
           </div>
-          {state && !state.success && (
-            <p className="rounded-lg bg-destructive/10 px-4 py-2 text-sm text-destructive">{state.error}</p>
-          )}
-          {state?.success && (
-            <p className="rounded-lg bg-green-500/10 px-4 py-2 text-sm text-green-600">تم الحفظ بنجاح</p>
-          )}
+          <ActionToast toast={toast} />
           <div className="flex justify-end">
             <Button type="submit" disabled={pending}>
               {pending ? "جارٍ الحفظ…" : "حفظ"}
