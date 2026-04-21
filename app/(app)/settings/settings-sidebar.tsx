@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { User, Leaf, DollarSign, Settings, Users, Bell, PieChart } from "lucide-react";
+import { User, Leaf, DollarSign, Settings, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -11,8 +11,6 @@ const NAV_ITEMS = [
   { href: "/settings/greenhouse",   icon: Leaf,         label: "إعدادات الصوبة" },
   { href: "/settings/financial",    icon: DollarSign,   label: "المالية" },
   { href: "/settings/system",       icon: Settings,     label: "النظام والبيانات" },
-  { href: "/settings/partners",     icon: PieChart,     label: "توزيع الأرباح" },
-  { href: "/settings/users",        icon: Users,        label: "المستخدمون" },
   { href: "/settings/notifications",icon: Bell,         label: "الإشعارات" },
 ];
 
