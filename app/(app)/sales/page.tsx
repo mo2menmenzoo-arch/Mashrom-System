@@ -66,10 +66,10 @@ export default async function SalesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">المبيعات</h1>
-          <p className="text-sm text-muted-foreground">دورة {formatInt(activeCycle.number)}</p>
+          <p className="text-sm text-muted-foreground">مبيعات الدورة الحالية</p>
         </div>
         <div className="flex flex-wrap gap-3 text-sm">
           <div className="rounded-md border bg-card px-3 py-2">
@@ -111,17 +111,17 @@ export default async function SalesPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="border-b text-right text-xs text-muted-foreground">
-                  <tr>
-                    <th className="py-2 font-medium">التاريخ</th>
-                    <th className="py-2 font-medium">العميل</th>
-                    <th className="py-2 font-medium">الكراتين</th>
-                    <th className="py-2 font-medium">سعر الكرتونة</th>
-                    <th className="py-2 font-medium">الإجمالي</th>
-                    <th className="py-2 font-medium">المدفوع</th>
-                    <th className="py-2 font-medium">المتبقي</th>
+                <thead className="text-right">
+                  <tr className="bg-muted/50 hover:bg-muted/50">
+                    <th className="py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">التاريخ</th>
+                    <th className="py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">العميل</th>
+                    <th className="py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">الكراتين</th>
+                    <th className="py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">سعر الكرتونة</th>
+                    <th className="py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">الإجمالي</th>
+                    <th className="py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">المدفوع</th>
+                    <th className="py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">المتبقي</th>
                     <th className="py-2"></th>
-                    {canEdit && <th className="py-2 font-medium">إجراءات</th>}
+                    {canEdit && <th className="py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">إجراءات</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -129,7 +129,7 @@ export default async function SalesPage() {
                     const remaining = Number(s.total) - Number(s.paid);
                     const isPaid = remaining <= 0;
                     return (
-                      <tr key={s.id} className="border-b last:border-0 hover:bg-muted/40">
+                      <tr key={s.id} className="border-b last:border-0 hover:bg-accent/50 transition-colors">
                         <td className="py-3 tabular-nums">{formatDate(s.date)}</td>
                         <td className="py-3 font-medium">{s.customerName}</td>
                         <td className="py-3 tabular-nums">{formatInt(s.cartons)}</td>
