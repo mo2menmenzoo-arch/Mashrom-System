@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Settings, Sun, Moon, Download } from "lucide-react";
-import { exportAllDataAction } from "@/actions/settings";
+import { Settings, Sun, Moon, Download, Printer } from "lucide-react";
+import { exportAllDataAction, exportExcelAction, getPrintDataAction, updateThemePreferenceAction } from "@/actions/settings";
+import type { PrintData } from "@/actions/settings";
 
 function Toast({ msg, ok }: { msg: string; ok: boolean }) {
   return (
@@ -14,35 +15,70 @@ function Toast({ msg, ok }: { msg: string; ok: boolean }) {
   );
 }
 
+function buildPrintHtml(data: PrintData): string {
+  function table(title: string, headers: string[], rows: string[][]): string {
+    return `
+      <h2>${title}</h2>
+      <table>
+        <thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table>`;
+  }
+
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <title>تقرير بيانات الصوبة</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600&display=swap');
+    body { font-family: 'Cairo', sans-serif; direction: rtl; padding: 20px; font-size: 12px; }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    h2 { font-size: 14px; margin-top: 24px; margin-bottom: 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    th, td { border: 1px solid #ddd; padding: 4px 8px; text-align: right; }
+    th { background: #f0f0f0; font-weight: 600; }
+    @media print { body { padding: 0; } h2 { page-break-before: auto; } }
+  </style>
+</head>
+<body>
+  <h1>تقرير بيانات الصوبة — ${new Date().toLocaleDateString("ar-EG")}</h1>
+  ${table("المبيعات", ["التاريخ", "العميل", "الكراتين", "الإجمالي", "الدورة"], data.sales.map((s) => [s.date, s.customerName, String(s.cartons), String(s.total), String(s.cycle)]))}
+  ${table("المصروفات", ["التاريخ", "الوصف", "المبلغ", "الدورة"], data.expenses.map((e) => [e.date, e.description, String(e.amount), String(e.cycle)]))}
+  ${table("إيداعات العهدة", ["التاريخ", "المبلغ", "ملاحظات"], data.deposits.map((d) => [d.date, String(d.amount), d.notes]))}
+  ${table("صرفيات العهدة", ["التاريخ", "الوصف", "المبلغ"], data.withdrawals.map((w) => [w.date, w.description, String(w.amount)]))}
+  ${table("المخزن", ["الاسم", "الكمية الأولية", "الوحدة"], data.inventory.map((i) => [i.name, String(i.initialQty), i.unit]))}
+</body>
+</html>`;
+}
+
 export default function SystemPage() {
   const [dark, setDark] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
   }, []);
 
-  function toggleTheme() {
-    const next = !dark;
-    setDark(next);
-    if (next) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
+  function showToast(msg: string, ok: boolean) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3000);
   }
 
-  async function handleExport() {
-    setExporting(true);
+  async function toggleTheme() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("theme", next ? "dark" : "light");
+    await updateThemePreferenceAction(next ? "dark" : "light");
+  }
+
+  async function handleExportCsv() {
+    setBusy(true);
     try {
       const result = await exportAllDataAction();
-      if (!result.success) {
-        setToast({ msg: result.error, ok: false });
-        return;
-      }
+      if (!result.success) { showToast(result.error, false); return; }
       const blob = new Blob([result.csv!], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -50,10 +86,59 @@ export default function SystemPage() {
       a.download = `mushroom-data-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      setToast({ msg: "تم تصدير البيانات بنجاح", ok: true });
+      showToast("تم تصدير CSV بنجاح", true);
     } finally {
-      setExporting(false);
-      setTimeout(() => setToast(null), 3000);
+      setBusy(false);
+    }
+  }
+
+  async function handleExportExcel() {
+    setBusy(true);
+    try {
+      const result = await exportExcelAction();
+      if (!result.success) { showToast(result.error, false); return; }
+      const bytes = Uint8Array.from(atob(result.base64!), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mushroom-data-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("تم تصدير Excel بنجاح", true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePrintPdf() {
+    setBusy(true);
+    try {
+      const result = await getPrintDataAction();
+      if (!result.success) { showToast(result.error, false); return; }
+
+      const printDiv = document.createElement("div");
+      printDiv.id = "print-content";
+      printDiv.innerHTML = buildPrintHtml(result.data!);
+
+      const style = document.createElement("style");
+      style.id = "print-hide-style";
+      style.textContent = `@media print { body > *:not(#print-content) { display: none !important; } #print-content { display: block !important; } }`;
+
+      document.body.appendChild(printDiv);
+      document.head.appendChild(style);
+
+      window.print();
+
+      const cleanup = () => {
+        document.getElementById("print-content")?.remove();
+        document.getElementById("print-hide-style")?.remove();
+        window.removeEventListener("afterprint", cleanup);
+      };
+      window.addEventListener("afterprint", cleanup);
+      setTimeout(cleanup, 5000);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -96,13 +181,17 @@ export default function SystemPage() {
           <div>
             <p className="mb-3 text-sm font-semibold">تصدير البيانات</p>
             <div className="flex flex-wrap gap-3">
-              <Button variant="outline" disabled={exporting} onClick={handleExport}>
+              <Button variant="outline" disabled={busy} onClick={handleExportCsv}>
                 <Download className="me-2 h-4 w-4" />
-                {exporting ? "جارٍ التصدير…" : "تصدير CSV"}
+                {busy ? "جارٍ التصدير…" : "تصدير CSV"}
               </Button>
-              <Button variant="outline" disabled={exporting} onClick={handleExport}>
+              <Button variant="outline" disabled={busy} onClick={handleExportExcel}>
                 <Download className="me-2 h-4 w-4" />
-                {exporting ? "جارٍ التصدير…" : "تصدير Excel"}
+                {busy ? "جارٍ التصدير…" : "تصدير Excel"}
+              </Button>
+              <Button variant="outline" disabled={busy} onClick={handlePrintPdf}>
+                <Printer className="me-2 h-4 w-4" />
+                {busy ? "جارٍ التحميل…" : "طباعة / PDF"}
               </Button>
             </div>
           </div>
