@@ -76,17 +76,18 @@ export function MobileNav({ role }: { role: Role }) {
       </button>
 
       {/* Backdrop */}
-      {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
-          onClick={() => setOpen(false)}
-        />
-      )}
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-black/70 transition-opacity duration-300 md:hidden",
+          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
+        )}
+        onClick={() => setOpen(false)}
+      />
 
       {/* Drawer */}
       <div
         className={cn(
-          "fixed inset-y-0 right-0 z-50 w-72 bg-card shadow-2xl transition-transform duration-300 md:hidden",
+          "fixed inset-y-0 right-0 z-50 flex w-[85vw] max-w-[300px] flex-col bg-card shadow-2xl transition-transform duration-300 ease-in-out md:hidden",
           open ? "translate-x-0" : "translate-x-full",
         )}
       >
@@ -111,7 +112,7 @@ export function MobileNav({ role }: { role: Role }) {
         </div>
 
         {/* Nav items */}
-        <nav className="flex flex-col gap-4 overflow-y-auto p-3 pb-8" style={{ maxHeight: "calc(100vh - 4rem)" }}>
+        <nav className="flex flex-col gap-4 overflow-y-auto p-3 pb-8 flex-1">
           {SECTIONS.map((section) => {
             if (section.roles && !section.roles.includes(role)) return null;
             const visibleItems = section.items.filter(
