@@ -38,15 +38,15 @@ export function LoginForm({ hasGoogle }: { hasGoogle: boolean }) {
       {hasGoogle && (
         <>
           <form action={googleSignInAction}>
-            <Button type="submit" variant="outline" size="lg" className="w-full gap-3">
+            <Button type="submit" variant="outline" size="lg" className="w-full gap-3 border-white/30 bg-white/10 text-white hover:bg-white/20 lg:border-border lg:bg-background lg:text-foreground lg:hover:bg-muted">
               <GoogleIcon />
               المتابعة بحساب Google
             </Button>
           </form>
           <div className="relative flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">أو</span>
-            <div className="h-px flex-1 bg-border" />
+            <div className="h-px flex-1 bg-white/20 lg:bg-border" />
+            <span className="text-xs text-white/60 lg:text-muted-foreground">أو</span>
+            <div className="h-px flex-1 bg-white/20 lg:bg-border" />
           </div>
         </>
       )}

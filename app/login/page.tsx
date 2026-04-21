@@ -74,11 +74,11 @@ export default function LoginPage() {
 
           <LoginForm hasGoogle={hasGoogle} />
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
+          <p className="mt-6 text-center text-sm text-white/70 lg:text-muted-foreground">
             ليس لديك حساب؟{" "}
             <Link
               href="/signup"
-              className="font-medium text-primary underline-offset-4 hover:underline"
+              className="font-semibold text-white underline underline-offset-4 lg:text-primary"
             >
               إنشاء حساب جديد
             </Link>
