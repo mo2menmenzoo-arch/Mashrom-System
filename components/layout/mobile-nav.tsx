@@ -11,7 +11,20 @@ import { Menu, X,
 import { cn } from "@/lib/utils";
 import type { Role } from "@prisma/client";
 
-const SECTIONS = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  roles?: Role[];
+};
+
+type NavSection = {
+  label: string;
+  roles?: Role[];
+  items: NavItem[];
+};
+
+const SECTIONS: NavSection[] = [
   {
     label: "القائمة الرئيسية",
     items: [
