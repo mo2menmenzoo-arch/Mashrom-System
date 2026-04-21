@@ -1,8 +1,7 @@
-import { LogOut } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatEGP } from "@/lib/format";
 import { logoutAction } from "@/actions/auth";
-import { MobileNav } from "./mobile-nav";
 import type { Role } from "@prisma/client";
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -15,10 +14,12 @@ export function Topbar({
   userName,
   role,
   custodyBalance,
+  onMenuClick,
 }: {
   userName: string;
   role: Role;
   custodyBalance: number;
+  onMenuClick?: () => void;
 }) {
   const low = custodyBalance < 1000;
   const initials = userName.trim().slice(0, 2) || "م";
@@ -27,7 +28,13 @@ export function Topbar({
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/80 px-4 shadow-sm backdrop-blur md:px-6">
       {/* Left side: hamburger (mobile) + custody balance */}
       <div className="flex items-center gap-3">
-        <MobileNav role={role} />
+        <button
+          id="mobile-menu-btn"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground md:hidden"
+          aria-label="فتح القائمة"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
         <div className="flex items-center gap-2">
           <span className="hidden text-sm text-muted-foreground sm:inline">رصيد العهدة:</span>
           <span

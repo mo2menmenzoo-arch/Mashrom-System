@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { MobileNav } from "@/components/layout/mobile-nav";
 import { ThemeSync } from "@/components/theme-sync";
 import { getCustodyBalance } from "@/lib/custody";
 
@@ -27,7 +28,10 @@ export default async function AppLayout({
   return (
     <div className="flex min-h-screen">
       <ThemeSync theme={theme} />
+      {/* Desktop sidebar */}
       <Sidebar role={session.user.role} />
+      {/* Mobile drawer — rendered at root level so z-index works correctly */}
+      <MobileNav role={session.user.role} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
           userName={session.user.name ?? session.user.email ?? ""}
