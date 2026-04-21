@@ -62,7 +62,7 @@ export function LoginForm({ hasGoogle }: { hasGoogle: boolean }) {
             required
             dir="ltr"
             className="text-left"
-            placeholder="admin@greenhouse.local"
+            placeholder="you@example.com"
           />
         </div>
         <div className="space-y-2">
