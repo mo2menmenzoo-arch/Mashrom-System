@@ -12,7 +12,7 @@ export default async function SettingsLayout({
   if (session?.user?.role !== "ADMIN") redirect("/dashboard");
 
   return (
-    <div className="flex gap-8">
+    <div className="flex flex-col gap-0 md:flex-row md:gap-8">
       <SettingsSidebar />
       <div className="min-w-0 flex-1">{children}</div>
     </div>
