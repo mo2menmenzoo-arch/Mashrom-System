@@ -50,6 +50,7 @@ export default async function ReportsPage({
 
   const totalRevenue = allPnL.reduce((s, p) => s + p.revenue, 0);
   const totalExpenses = allPnL.reduce((s, p) => s + p.expenses + p.custody, 0);
+  const totalNet = allPnL.reduce((s, p) => s + p.net, 0);
 
   const selectedPnL = selectedCycleId ? pnlById[selectedCycleId] : null;
   const selectedCycle = selectedCycleId
@@ -67,7 +68,7 @@ export default async function ReportsPage({
       </div>
 
       {/* Global KPI cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="إجمالي المبيعات"
           value={formatEGP(totalRevenue)}
@@ -93,6 +94,12 @@ export default async function ReportsPage({
               </span>
             ) : null
           }
+        />
+        <KpiCard
+          label={totalNet >= 0 ? "إجمالي صافي الربح" : "إجمالي صافي الخسارة"}
+          value={formatEGP(Math.abs(totalNet))}
+          accent={totalNet >= 0 ? "success" : "destructive"}
+          icon={totalNet >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
         />
       </div>
 
