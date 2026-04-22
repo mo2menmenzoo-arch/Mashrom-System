@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { getCycleBalances } from "@/lib/inventory";
 import { formatDate, formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { AddInventoryItemDialog } from "./add-inventory-item-dialog";
+import { InventoryItemActions } from "./inventory-item-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -60,12 +62,15 @@ export default async function InventoryPage() {
           <h1 className="text-2xl font-bold">المخزن</h1>
           <p className="text-sm text-muted-foreground">مخزون الدورة الحالية</p>
         </div>
-        {alertCount > 0 && (
-          <Badge variant="warning" className="gap-1">
-            <AlertTriangle className="h-3 w-3" />
-            {formatInt(alertCount)} تنبيه
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {alertCount > 0 && (
+            <Badge variant="warning" className="gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              {formatInt(alertCount)} تنبيه
+            </Badge>
+          )}
+          <AddInventoryItemDialog cycleId={activeCycle.id} />
+        </div>
       </div>
 
       <Card>
@@ -91,6 +96,7 @@ export default async function InventoryPage() {
                     <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">المصدر</th>
                     <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">تاريخ الانتهاء</th>
                     <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">الحالة</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">الإجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -158,6 +164,20 @@ export default async function InventoryPage() {
                             </Badge>
                           )}
                         </div>
+                      </td>
+                      <td className="py-3">
+                        <InventoryItemActions
+                          item={{
+                            id: item.id,
+                            name: item.name,
+                            unit: item.unit,
+                            expiryDate: item.expiryDate
+                              ? item.expiryDate.toISOString().split("T")[0]
+                              : null,
+                            lowStockAt: item.lowStockAt !== null ? Number(item.lowStockAt) : null,
+                            source: item.source,
+                          }}
+                        />
                       </td>
                     </tr>
                   ))}
