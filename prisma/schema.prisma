@@ -49,6 +49,11 @@ enum AuditAction {
   OVERRIDE
 }
 
+enum WithdrawalCategory {
+  OPERATING
+  FOUNDING
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -90,19 +95,65 @@ model Account {
   @@unique([provider, providerAccountId])
 }
 
-model Cycle {
-  id         String      @id @default(cuid())
-  number     Int         @unique
-  startDate  DateTime
-  endDate    DateTime
-  status     CycleStatus @default(SCHEDULED)
-  closedAt   DateTime?
-  closedById String?
-  notes      String?
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+model Organization {
+  id        String   @id @default(cuid())
+  name      String   @default("الصوبة الرئيسية")
+  createdAt DateTime @default(now())
 
-  closedBy    User?               @relation("CycleClosedBy", fields: [closedById], references: [id])
+  users             User[]
+  financialSettings FinancialSettings?
+  partners          Partner[]
+  greenhouses       Greenhouse[]
+}
+
+model Greenhouse {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  number         Int
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  cycles           Cycle[]
+  foundingExpenses FoundingExpense[]
+  settings         GreenhouseSettings?
+
+  @@unique([organizationId, number])
+  @@index([organizationId])
+}
+
+model FoundingExpense {
+  id           String     @id @default(cuid())
+  greenhouseId String
+  greenhouse   Greenhouse @relation(fields: [greenhouseId], references: [id])
+  date         DateTime
+  amount       Decimal    @db.Decimal(12, 2)
+  description  String
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  custodyWithdrawalId String? @unique
+
+  @@index([greenhouseId, date])
+}
+
+model Cycle {
+  id           String      @id @default(cuid())
+  greenhouseId String
+  number       Int         @unique
+  startDate    DateTime
+  endDate      DateTime
+  status       CycleStatus @default(SCHEDULED)
+  closedAt     DateTime?
+  closedById   String?
+  notes        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  greenhouse  Greenhouse           @relation(fields: [greenhouseId], references: [id])
+  closedBy    User?                @relation("CycleClosedBy", fields: [closedById], references: [id])
   expenses    Expense[]
   readings    OperationReading[]
   sales       Sale[]
@@ -111,6 +162,7 @@ model Cycle {
   inventory   InventoryItem[]
 
   @@index([status, startDate])
+  @@index([greenhouseId])
 }
 
 model Expense {
@@ -218,13 +270,16 @@ model CustodyDeposit {
 }
 
 model CustodyWithdrawal {
-  id          String   @id @default(cuid())
-  cycleId     String
-  date        DateTime
-  description String
-  amount      Decimal  @db.Decimal(12, 2)
-  cycle       Cycle    @relation(fields: [cycleId], references: [id], onDelete: Restrict)
-  createdAt   DateTime @default(now())
+  id                String             @id @default(cuid())
+  cycleId           String
+  date              DateTime
+  description       String
+  amount            Decimal            @db.Decimal(12, 2)
+  category          WithdrawalCategory @default(OPERATING)
+  expenseId         String?            @unique
+  foundingExpenseId String?            @unique
+  cycle             Cycle              @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  createdAt         DateTime           @default(now())
 
   @@index([cycleId, date])
 }
@@ -259,25 +314,14 @@ model PushSubscription {
   @@index([userId])
 }
 
-model Organization {
-  id        String   @id @default(cuid())
-  name      String   @default("الصوبة الرئيسية")
-  createdAt DateTime @default(now())
-
-  users              User[]
-  greenhouseSettings GreenhouseSettings?
-  financialSettings  FinancialSettings?
-  partners           Partner[]
-}
-
 model GreenhouseSettings {
-  id             String       @id @default(cuid())
-  organizationId String       @unique
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  temperature    Float        @default(22)
-  humidity       Float        @default(85)
-  cycleDuration  Int          @default(60)
-  updatedAt      DateTime     @updatedAt
+  id           String     @id @default(cuid())
+  greenhouseId String     @unique
+  greenhouse   Greenhouse @relation(fields: [greenhouseId], references: [id])
+  temperature  Float      @default(22)
+  humidity     Float      @default(85)
+  cycleDuration Int       @default(60)
+  updatedAt    DateTime   @updatedAt
 }
 
 model FinancialSettings {
