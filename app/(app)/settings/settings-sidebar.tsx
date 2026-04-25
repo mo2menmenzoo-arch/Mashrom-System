@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/settings/account",       icon: User,        label: "الحساب" },
-  { href: "/settings/greenhouse",    icon: Leaf,        label: "إعدادات الصوبة" },
+  { href: "/settings/greenhouses",   icon: Leaf,        label: "إعدادات الصوبة" },
   { href: "/settings/financial",     icon: DollarSign,  label: "المالية" },
   { href: "/settings/system",        icon: Settings,    label: "النظام والبيانات" },
   { href: "/settings/notifications", icon: Bell,        label: "الإشعارات" },
