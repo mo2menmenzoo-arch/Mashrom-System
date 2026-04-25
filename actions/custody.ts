@@ -59,6 +59,8 @@ const withdrawalSchema = z.object({
   date: z.coerce.date(),
   description: z.string().trim().min(1).max(200),
   amount: z.coerce.number().positive(),
+  category: z.enum(["OPERATING", "FOUNDING"]).default("OPERATING"),
+  greenhouseId: z.string().min(1),
 });
 
 export async function createWithdrawalAction(formData: FormData): Promise<ActionResult> {
@@ -70,11 +72,13 @@ export async function createWithdrawalAction(formData: FormData): Promise<Action
       date: formData.get("date"),
       description: formData.get("description"),
       amount: formData.get("amount"),
+      category: formData.get("category") ?? "OPERATING",
+      greenhouseId: formData.get("greenhouseId"),
     });
 
     if (!parsed.success) return { ok: false, error: "بيانات غير صحيحة" };
 
-    const { cycleId, date, description, amount } = parsed.data;
+    const { cycleId, date, description, amount, category, greenhouseId } = parsed.data;
     await assertCycleOpen(cycleId, { userRole: user.role });
 
     const balance = await getCustodyBalance();
@@ -90,14 +94,41 @@ export async function createWithdrawalAction(formData: FormData): Promise<Action
       action: AuditAction.CREATE,
       entity: "CustodyWithdrawal",
       entityId: (result: { id: string }) => result.id,
-      mutate: (tx) =>
-        tx.custodyWithdrawal.create({
-          data: { cycleId, date, description, amount },
-        }),
+      mutate: async (tx) => {
+        if (category === "OPERATING") {
+          const expense = await tx.expense.create({
+            data: {
+              cycleId,
+              date,
+              description,
+              amount,
+              createdById: user.id,
+            },
+          });
+          return tx.custodyWithdrawal.create({
+            data: { cycleId, date, description, amount, category, expenseId: expense.id },
+          });
+        } else {
+          const fe = await tx.foundingExpense.create({
+            data: { greenhouseId, date, description, amount },
+          });
+          return tx.custodyWithdrawal.create({
+            data: {
+              cycleId,
+              date,
+              description,
+              amount,
+              category,
+              foundingExpenseId: fe.id,
+            },
+          });
+        }
+      },
     });
 
     revalidatePath("/custody");
     revalidatePath("/dashboard");
+    revalidatePath("/expenses");
     return { ok: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "خطأ غير متوقع";
@@ -246,7 +277,9 @@ export async function deleteWithdrawalAction(withdrawalId: string): Promise<Acti
   try {
     const user = await requireRole(perms.custodyWrite);
 
-    const withdrawal = await prisma.custodyWithdrawal.findUnique({ where: { id: withdrawalId } });
+    const withdrawal = await prisma.custodyWithdrawal.findUnique({
+      where: { id: withdrawalId },
+    });
     if (!withdrawal) return { ok: false, error: "الصرفية غير موجودة" };
 
     await assertCycleOpen(withdrawal.cycleId, { userRole: user.role });
@@ -257,11 +290,20 @@ export async function deleteWithdrawalAction(withdrawalId: string): Promise<Acti
       entity: "CustodyWithdrawal",
       entityId: () => withdrawalId,
       before: { amount: withdrawal.amount, description: withdrawal.description },
-      mutate: (tx) => tx.custodyWithdrawal.delete({ where: { id: withdrawalId } }),
+      mutate: async (tx) => {
+        if (withdrawal.expenseId) {
+          await tx.expense.delete({ where: { id: withdrawal.expenseId } });
+        }
+        if (withdrawal.foundingExpenseId) {
+          await tx.foundingExpense.delete({ where: { id: withdrawal.foundingExpenseId } });
+        }
+        return tx.custodyWithdrawal.delete({ where: { id: withdrawalId } });
+      },
     });
 
     revalidatePath("/custody");
     revalidatePath("/dashboard");
+    revalidatePath("/expenses");
     return { ok: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "خطأ غير متوقع";
