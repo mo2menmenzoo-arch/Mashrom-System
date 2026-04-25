@@ -19,6 +19,7 @@ export default async function CustodyPage() {
   const activeCycle = await prisma.cycle.findFirst({
     where: { status: "ACTIVE" },
     orderBy: { startDate: "desc" },
+    include: { greenhouse: { select: { id: true } } },
   });
 
   if (!activeCycle) {
@@ -86,7 +87,7 @@ export default async function CustodyPage() {
               صرف من العهدة
             </CardTitle>
           </CardHeader>
-          <CardContent><WithdrawalForm cycleId={activeCycle.id} balance={balance} /></CardContent>
+          <CardContent><WithdrawalForm cycleId={activeCycle.id} greenhouseId={activeCycle.greenhouse?.id ?? ""} balance={balance} /></CardContent>
         </Card>
       </div>
 
@@ -152,6 +153,9 @@ export default async function CustodyPage() {
                       <p className="text-xs">{w.description}</p>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Badge variant={w.category === "FOUNDING" ? "secondary" : "outline"} className="text-xs">
+                        {w.category === "FOUNDING" ? "تأسيس" : "تشغيل"}
+                      </Badge>
                       <span className="font-medium tabular-nums text-destructive">
                         -{formatEGP(Number(w.amount))}
                       </span>

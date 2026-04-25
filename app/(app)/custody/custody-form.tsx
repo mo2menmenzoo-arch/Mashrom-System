@@ -75,9 +75,18 @@ export function DepositForm({ cycleId }: { cycleId: string }) {
   );
 }
 
-export function WithdrawalForm({ cycleId, balance }: { cycleId: string; balance: number }) {
+export function WithdrawalForm({
+  cycleId,
+  greenhouseId,
+  balance,
+}: {
+  cycleId: string;
+  greenhouseId: string;
+  balance: number;
+}) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [category, setCategory] = useState<"OPERATING" | "FOUNDING">("OPERATING");
   const router = useRouter();
 
   const today = new Date().toISOString().slice(0, 10);
@@ -90,6 +99,7 @@ export function WithdrawalForm({ cycleId, balance }: { cycleId: string; balance:
       else {
         router.refresh();
         (document.getElementById("withdrawal-form") as HTMLFormElement)?.reset();
+        setCategory("OPERATING");
       }
     });
   }
@@ -97,6 +107,33 @@ export function WithdrawalForm({ cycleId, balance }: { cycleId: string; balance:
   return (
     <form id="withdrawal-form" action={onSubmit} className="space-y-4">
       <input type="hidden" name="cycleId" value={cycleId} />
+      <input type="hidden" name="greenhouseId" value={greenhouseId} />
+      <input type="hidden" name="category" value={category} />
+
+      <div className="space-y-2">
+        <Label>نوع الصرف</Label>
+        <div className="flex gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              checked={category === "OPERATING"}
+              onChange={() => setCategory("OPERATING")}
+              className="accent-primary"
+            />
+            <span className="text-sm">مصاريف تشغيل</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              checked={category === "FOUNDING"}
+              onChange={() => setCategory("FOUNDING")}
+              className="accent-primary"
+            />
+            <span className="text-sm">مصاريف تأسيس</span>
+          </label>
+        </div>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="wd-date">التاريخ</Label>
