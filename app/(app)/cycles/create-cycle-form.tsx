@@ -16,12 +16,30 @@ function SubmitButton() {
   );
 }
 
-export function CreateCycleForm() {
+type Greenhouse = { id: string; name: string; number: number };
+
+export function CreateCycleForm({ greenhouses }: { greenhouses: Greenhouse[] }) {
   const [state, action] = useActionState(createCycleAction, null);
   const today = new Date().toISOString().slice(0, 10);
 
   return (
     <form action={action} className="grid gap-4 md:grid-cols-3">
+      <div className="space-y-2">
+        <Label htmlFor="greenhouseId">الصوبة</Label>
+        <select
+          id="greenhouseId"
+          name="greenhouseId"
+          required
+          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+        >
+          <option value="">اختر الصوبة...</option>
+          {greenhouses.map((g) => (
+            <option key={g.id} value={g.id}>
+              صوبة {g.number} — {g.name}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="space-y-2">
         <Label htmlFor="startDate">تاريخ البداية</Label>
         <Input
@@ -33,7 +51,7 @@ export function CreateCycleForm() {
           className="tabular-nums"
         />
       </div>
-      <div className="space-y-2 md:col-span-2">
+      <div className="space-y-2">
         <Label htmlFor="notes">ملاحظات (اختياري)</Label>
         <Input id="notes" name="notes" type="text" maxLength={500} />
       </div>

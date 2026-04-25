@@ -28,7 +28,7 @@ async function main() {
   });
 
   const updated = await prisma.cycle.updateMany({
-    where: { greenhouseId: null },
+    where: { greenhouseId: { equals: undefined } },
     data: { greenhouseId: gh.id },
   });
 

@@ -2,8 +2,10 @@ import { addDays, differenceInCalendarDays } from "date-fns";
 
 export const CYCLE_LENGTH_DAYS = 60;
 
-export function computeCycleEnd(start: Date): Date {
-  return addDays(start, CYCLE_LENGTH_DAYS);
+export function computeCycleEnd(startDate: Date, durationDays = 60): Date {
+  const end = new Date(startDate);
+  end.setDate(end.getDate() + durationDays);
+  return end;
 }
 
 export function cycleDayNumber(start: Date, on: Date = new Date()): number {

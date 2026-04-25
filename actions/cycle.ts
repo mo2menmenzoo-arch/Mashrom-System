@@ -11,6 +11,7 @@ import { computeCycleEnd } from "@/lib/cycle";
 
 const createCycleSchema = z.object({
   startDate: z.coerce.date(),
+  greenhouseId: z.string().min(1, "اختر الصوبة"),
   notes: z.string().trim().max(500).optional(),
 });
 
@@ -26,28 +27,37 @@ export async function createCycleAction(
 
     const parsed = createCycleSchema.safeParse({
       startDate: formData.get("startDate"),
+      greenhouseId: formData.get("greenhouseId"),
       notes: formData.get("notes") ?? undefined,
     });
     if (!parsed.success) {
-      return { ok: false, error: "بيانات غير صحيحة" };
+      return { ok: false, error: parsed.error.errors[0].message };
     }
 
+    const { startDate, greenhouseId, notes } = parsed.data;
+
     const existingActive = await prisma.cycle.findFirst({
-      where: { status: CycleStatus.ACTIVE },
+      where: { status: CycleStatus.ACTIVE, greenhouseId },
       select: { number: true },
     });
     if (existingActive) {
       return {
         ok: false,
-        error: `يوجد دورة نشطة بالفعل (دورة ${existingActive.number}) — أغلقها أولاً قبل إنشاء دورة جديدة`,
+        error: `يوجد دورة نشطة بالفعل في هذه الصوبة (دورة ${existingActive.number}) — أغلقها أولاً`,
       };
     }
 
     const last = await prisma.cycle.findFirst({
+      where: { greenhouseId },
       orderBy: { number: "desc" },
       select: { number: true },
     });
     const nextNumber = (last?.number ?? 0) + 1;
+
+    const settings = await prisma.greenhouseSettings.findUnique({
+      where: { greenhouseId },
+    });
+    const cycleDuration = settings?.cycleDuration ?? 60;
 
     await withAudit({
       userId: user.id,
@@ -58,10 +68,11 @@ export async function createCycleAction(
         tx.cycle.create({
           data: {
             number: nextNumber,
-            startDate: parsed.data.startDate,
-            endDate: computeCycleEnd(parsed.data.startDate),
+            greenhouseId,
+            startDate,
+            endDate: computeCycleEnd(startDate, cycleDuration),
             status: CycleStatus.ACTIVE,
-            notes: parsed.data.notes ?? null,
+            notes: notes ?? null,
           },
         }),
     });

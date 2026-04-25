@@ -26,21 +26,28 @@ export default async function CyclesPage() {
   const session = await auth();
   const isAdmin = session?.user?.role === "ADMIN";
 
-  const cycles = await prisma.cycle.findMany({
-    orderBy: { number: "desc" },
-    include: {
-      _count: {
-        select: {
-          sales: true,
-          expenses: true,
-          readings: true,
-          deposits: true,
-          withdrawals: true,
-          inventory: true,
+  const [cycles, greenhouses] = await Promise.all([
+    prisma.cycle.findMany({
+      orderBy: { number: "desc" },
+      include: {
+        greenhouse: { select: { name: true, number: true } },
+        _count: {
+          select: {
+            sales: true,
+            expenses: true,
+            readings: true,
+            deposits: true,
+            withdrawals: true,
+            inventory: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.greenhouse.findMany({
+      where: { organizationId: "default-org" },
+      orderBy: { number: "asc" },
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -57,7 +64,7 @@ export default async function CyclesPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <CreateCycleForm />
+            <CreateCycleForm greenhouses={greenhouses} />
           </CardContent>
         </Card>
       )}
@@ -79,6 +86,7 @@ export default async function CyclesPage() {
                 <thead className="border-b text-right text-xs text-muted-foreground">
                   <tr>
                     <th className="py-2 font-medium">رقم الدورة</th>
+                    <th className="py-2 font-medium">الصوبة</th>
                     <th className="py-2 font-medium">تاريخ البداية</th>
                     <th className="py-2 font-medium">تاريخ النهاية</th>
                     <th className="py-2 font-medium">الحالة</th>
@@ -92,6 +100,7 @@ export default async function CyclesPage() {
                   {cycles.map((c) => (
                     <tr key={c.id} className="border-b last:border-0 hover:bg-muted/40">
                       <td className="py-3 font-medium">دورة {formatInt(c.number)}</td>
+                      <td className="py-3">{c.greenhouse ? `صوبة ${c.greenhouse.number}` : "—"}</td>
                       <td className="py-3 tabular-nums">{formatDate(c.startDate)}</td>
                       <td className="py-3 tabular-nums">{formatDate(c.endDate)}</td>
                       <td className="py-3">
