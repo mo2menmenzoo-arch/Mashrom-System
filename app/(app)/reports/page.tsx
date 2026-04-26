@@ -6,9 +6,10 @@ import {
   CircleDollarSign,
   BarChart2,
   AlertTriangle,
+  Building2,
 } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { getAllCyclesPnL } from "@/lib/reports";
+import { getAllGreenhousesPnL } from "@/lib/reports";
 import { getCustodyBalance, CUSTODY_LOW_THRESHOLD } from "@/lib/custody";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,29 +34,47 @@ const STATUS_VARIANT: Record<string, "success" | "secondary" | "outline"> = {
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cycle?: string }>;
+  searchParams: Promise<{ cycle?: string; greenhouse?: string }>;
 }) {
-  const { cycle: selectedCycleId } = await searchParams;
+  const { cycle: selectedCycleId, greenhouse: selectedGreenhouseId } = await searchParams;
 
-  const [cycles, allPnL, custodyBalance] = await Promise.all([
-    prisma.cycle.findMany({
+  const [greenhouses, allGreenhousesPnL, custodyBalance] = await Promise.all([
+    prisma.greenhouse.findMany({
+      where: { organizationId: "default-org" },
       orderBy: { number: "asc" },
-      select: { id: true, number: true, startDate: true, endDate: true, status: true },
     }),
-    getAllCyclesPnL(),
+    getAllGreenhousesPnL(),
     getCustodyBalance(),
   ]);
 
-  const pnlById = Object.fromEntries(allPnL.map((p) => [p.cycleId, p]));
+  // Filter to selected greenhouse or all
+  const activePnL = selectedGreenhouseId
+    ? allGreenhousesPnL.filter((g) => g.greenhouseId === selectedGreenhouseId)
+    : allGreenhousesPnL;
 
-  const totalRevenue = allPnL.reduce((s, p) => s + p.revenue, 0);
-  const totalExpenses = allPnL.reduce((s, p) => s + p.expenses + p.custody, 0);
-  const totalNet = allPnL.reduce((s, p) => s + p.net, 0);
+  const allCyclesPnL = activePnL.flatMap((g) => g.cycles);
+  const pnlById = Object.fromEntries(allCyclesPnL.map((p) => [p.cycleId, p]));
+
+  const totalRevenue = activePnL.reduce((s, g) => s + g.revenue, 0);
+  const totalExpenses = activePnL.reduce((s, g) => s + g.expenses + g.custody, 0);
+  const totalNet = activePnL.reduce((s, g) => s + g.net, 0);
+  const totalFounding = activePnL.reduce((s, g) => s + g.foundingTotal, 0);
+
+  const cycles = await prisma.cycle.findMany({
+    where: selectedGreenhouseId ? { greenhouseId: selectedGreenhouseId } : undefined,
+    orderBy: { number: "asc" },
+    select: {
+      id: true,
+      number: true,
+      startDate: true,
+      endDate: true,
+      status: true,
+      greenhouse: { select: { name: true, number: true } },
+    },
+  });
 
   const selectedPnL = selectedCycleId ? pnlById[selectedCycleId] : null;
-  const selectedCycle = selectedCycleId
-    ? cycles.find((c) => c.id === selectedCycleId)
-    : null;
+  const selectedCycle = selectedCycleId ? cycles.find((c) => c.id === selectedCycleId) : null;
 
   return (
     <div className="space-y-6">
@@ -66,6 +85,37 @@ export default async function ReportsPage({
           ملخص الأرباح والخسائر عبر جميع الدورات
         </p>
       </div>
+
+      {/* Greenhouse filter */}
+      {greenhouses.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/reports"
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              !selectedGreenhouseId
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted hover:bg-muted/80",
+            )}
+          >
+            كل الصوب
+          </Link>
+          {greenhouses.map((g) => (
+            <Link
+              key={g.id}
+              href={`/reports?greenhouse=${g.id}`}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                selectedGreenhouseId === g.id
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted hover:bg-muted/80",
+              )}
+            >
+              صوبة {g.number} — {g.name}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* Global KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -103,8 +153,20 @@ export default async function ReportsPage({
         />
       </div>
 
+      {/* Founding expenses KPI — only shown when there's founding capital */}
+      {totalFounding > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            label="رأس المال المبدئي (مصاريف التأسيس)"
+            value={formatEGP(totalFounding)}
+            accent="default"
+            icon={<Building2 className="h-5 w-5" />}
+          />
+        </div>
+      )}
+
       {/* Bar chart */}
-      {allPnL.length > 0 && (
+      {allCyclesPnL.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -113,7 +175,7 @@ export default async function ReportsPage({
             </CardTitle>
           </CardHeader>
           <CardContent className="pb-2">
-            <CyclesPnLChart cycles={allPnL} />
+            <CyclesPnLChart cycles={allCyclesPnL} />
           </CardContent>
         </Card>
       )}
@@ -136,6 +198,7 @@ export default async function ReportsPage({
                 <thead className="border-b text-right text-xs text-muted-foreground">
                   <tr>
                     <th className="py-2 font-medium">الدورة</th>
+                    <th className="py-2 font-medium">الصوبة</th>
                     <th className="py-2 font-medium">الفترة</th>
                     <th className="py-2 font-medium">الحالة</th>
                     <th className="py-2 font-medium">الإيرادات</th>
@@ -160,6 +223,9 @@ export default async function ReportsPage({
                       >
                         <td className="py-3 font-medium">
                           دورة {formatInt(c.number)}
+                        </td>
+                        <td className="py-3 text-xs text-muted-foreground">
+                          {c.greenhouse ? `صوبة ${c.greenhouse.number}` : "—"}
                         </td>
                         <td className="py-3 tabular-nums text-xs text-muted-foreground">
                           {formatDate(c.startDate)} — {formatDate(c.endDate)}
@@ -188,7 +254,7 @@ export default async function ReportsPage({
                         </td>
                         <td className="py-3 text-left">
                           <Link
-                            href={`/reports?cycle=${c.id}`}
+                            href={`/reports?cycle=${c.id}${selectedGreenhouseId ? `&greenhouse=${selectedGreenhouseId}` : ""}`}
                             className={cn(
                               "text-sm hover:underline",
                               isSelected
