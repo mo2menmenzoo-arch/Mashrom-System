@@ -16,6 +16,7 @@ enum Role {
   ADMIN
   OPERATOR
   ACCOUNTANT
+  VIEWER
 }
 
 enum CycleStatus {
@@ -67,6 +68,7 @@ model User {
   organizationId String?
   organization   Organization?    @relation(fields: [organizationId], references: [id])
   preferences    UserPreferences?
+  permissions    UserPermissions?
 
   accounts      Account[]
   auditLogs     AuditLog[]
@@ -228,6 +230,8 @@ model OperationReading {
   co2         Int?
   cleanliness Cleanliness?
   notes       String?
+  watered     Boolean      @default(false)
+  medicines   String[]     @default([])
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -350,5 +354,25 @@ model UserPreferences {
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   theme     String   @default("light")
+  updatedAt DateTime @updatedAt
+}
+
+model UserPermissions {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  viewOperations Boolean @default(true)
+  viewSales      Boolean @default(true)
+  viewInventory  Boolean @default(true)
+  viewExpenses   Boolean @default(true)
+  viewCustody    Boolean @default(true)
+  viewReports    Boolean @default(true)
+
+  editOperations Boolean @default(false)
+  editSales      Boolean @default(false)
+  editInventory  Boolean @default(false)
+  editExpenses   Boolean @default(false)
+  editCustody    Boolean @default(false)
+
   updatedAt DateTime @updatedAt
 }
