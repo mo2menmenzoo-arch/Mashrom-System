@@ -1,6 +1,6 @@
 import { Plus, AlertTriangle } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { auth } from "@/auth";
+import { getSessionUser, getUserEffectivePerms } from "@/lib/rbac";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatInt } from "@/lib/format";
@@ -33,9 +33,28 @@ function isHumidityAlert(v: number | null) { return v !== null && (v < HUMIDITY_
 function isCo2Alert(v: number | null) { return v !== null && v > CO2_MAX; }
 
 export default async function OperationsPage() {
-  const session = await auth();
-  const role = session?.user?.role;
-  const canEdit = role === "ADMIN" || role === "OPERATOR";
+  let effectivePerms = null;
+  try {
+    const user = await getSessionUser();
+    effectivePerms = await getUserEffectivePerms(user.id);
+  } catch {
+    // unauthenticated — middleware handles redirect
+  }
+
+  if (effectivePerms && !effectivePerms.viewOperations) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">جدول التشغيل</h1>
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            غير مصرح بالوصول إلى هذا القسم.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const canEdit = effectivePerms?.editOperations ?? false;
 
   const activeCycle = await prisma.cycle.findFirst({
     where: { status: "ACTIVE" },

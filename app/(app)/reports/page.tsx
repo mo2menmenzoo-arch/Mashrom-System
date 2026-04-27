@@ -9,6 +9,7 @@ import {
   Building2,
 } from "lucide-react";
 import { prisma } from "@/lib/db";
+import { getSessionUser, getUserEffectivePerms } from "@/lib/rbac";
 import { getAllGreenhousesPnL } from "@/lib/reports";
 import { getCustodyBalance, CUSTODY_LOW_THRESHOLD } from "@/lib/custody";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,13 @@ export default async function ReportsPage({
     getAllGreenhousesPnL(),
     getCustodyBalance(),
   ]);
+
+  let canViewFinancials = false;
+  try {
+    const sessionUser = await getSessionUser();
+    const ep = await getUserEffectivePerms(sessionUser.id);
+    canViewFinancials = ep.canViewFinancials;
+  } catch { /* unauthenticated */ }
 
   // Filter to selected greenhouse or all
   const activePnL = selectedGreenhouseId
@@ -118,16 +126,17 @@ export default async function ReportsPage({
       )}
 
       {/* Global KPI cards */}
+      {canViewFinancials && (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="إجمالي المبيعات"
-          value={formatEGP(totalRevenue)}
+          value={canViewFinancials ? formatEGP(totalRevenue) : "—"}
           accent="success"
           icon={<TrendingUp className="h-5 w-5" />}
         />
         <KpiCard
           label="إجمالي المصاريف"
-          value={formatEGP(totalExpenses)}
+          value={canViewFinancials ? formatEGP(totalExpenses) : "—"}
           accent="destructive"
           icon={<TrendingDown className="h-5 w-5" />}
         />
@@ -147,14 +156,15 @@ export default async function ReportsPage({
         />
         <KpiCard
           label={totalNet >= 0 ? "إجمالي صافي الربح" : "إجمالي صافي الخسارة"}
-          value={formatEGP(Math.abs(totalNet))}
+          value={canViewFinancials ? formatEGP(Math.abs(totalNet)) : "—"}
           accent={totalNet >= 0 ? "success" : "destructive"}
           icon={totalNet >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
         />
       </div>
+      )}
 
       {/* Founding expenses KPI — only shown when there's founding capital */}
-      {totalFounding > 0 && (
+      {canViewFinancials && totalFounding > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
             label="رأس المال المبدئي (مصاريف التأسيس)"
