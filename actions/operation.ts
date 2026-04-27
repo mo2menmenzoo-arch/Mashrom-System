@@ -19,6 +19,8 @@ const readingSchema = z.object({
   co2: z.coerce.number().int().min(0).max(9999).optional(),
   cleanliness: z.enum(["EXCELLENT", "GOOD", "ACCEPTABLE", "POOR"]).optional(),
   notes: z.string().trim().max(500).optional(),
+  watered: z.boolean().optional(),
+  medicines: z.array(z.string()).optional(),
 });
 
 export async function createOperationReadingAction(formData: FormData): Promise<ActionResult> {
@@ -33,11 +35,13 @@ export async function createOperationReadingAction(formData: FormData): Promise<
       co2: formData.get("co2") || undefined,
       cleanliness: formData.get("cleanliness") || undefined,
       notes: formData.get("notes") || undefined,
+      watered: formData.get("watered") === "on" || formData.get("watered") === "true",
+      medicines: formData.getAll("medicines") as string[],
     });
 
     if (!parsed.success) return { ok: false, error: "بيانات غير صحيحة" };
 
-    const { cycleId, date, temperature, humidity, co2, cleanliness, notes } = parsed.data;
+    const { cycleId, date, temperature, humidity, co2, cleanliness, notes, watered, medicines } = parsed.data;
     await assertCycleOpen(cycleId, { userRole: user.role });
 
     const existing = await prisma.operationReading.findUnique({
@@ -69,6 +73,8 @@ export async function createOperationReadingAction(formData: FormData): Promise<
             co2: co2 ?? null,
             cleanliness: cleanliness ?? null,
             notes: notes ?? null,
+            watered: watered ?? false,
+            medicines: medicines ?? [],
           },
         }),
     });
@@ -100,6 +106,8 @@ export async function updateOperationReadingAction(
       co2: formData.get("co2") || undefined,
       cleanliness: formData.get("cleanliness") || undefined,
       notes: formData.get("notes") || undefined,
+      watered: formData.get("watered") === "on" || formData.get("watered") === "true",
+      medicines: formData.getAll("medicines") as string[],
     });
 
     if (!parsed.success) return { ok: false, error: "بيانات غير صحيحة" };
@@ -114,6 +122,8 @@ export async function updateOperationReadingAction(
         humidity: reading.humidity,
         co2: reading.co2,
         cleanliness: reading.cleanliness,
+        watered: reading.watered,
+        medicines: reading.medicines,
       },
       mutate: (tx) =>
         tx.operationReading.update({
@@ -124,6 +134,8 @@ export async function updateOperationReadingAction(
             co2: parsed.data.co2 ?? null,
             cleanliness: parsed.data.cleanliness ?? null,
             notes: parsed.data.notes ?? null,
+            watered: parsed.data.watered ?? false,
+            medicines: parsed.data.medicines ?? [],
           },
         }),
     });
