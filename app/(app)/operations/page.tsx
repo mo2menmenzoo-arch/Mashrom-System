@@ -101,6 +101,8 @@ export default async function OperationsPage() {
                     <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">CO₂ (ppm)</th>
                     <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">النظافة</th>
                     <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">ملاحظات</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">الري</th>
+                    <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">الأدوية</th>
                     {canEdit && <th className="py-2 font-semibold uppercase tracking-wider text-muted-foreground">إجراءات</th>}
                   </tr>
                 </thead>
@@ -138,6 +140,24 @@ export default async function OperationsPage() {
                           )}
                         </td>
                         <td className="py-3 max-w-xs truncate text-muted-foreground">{r.notes ?? "—"}</td>
+                        <td className="py-3">
+                          {r.watered ? (
+                            <Badge variant="success" className="text-xs">✓ نعم</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="py-3">
+                          {r.medicines.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {r.medicines.map((m) => (
+                                <Badge key={m} variant="secondary" className="text-xs">{m}</Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
                         {canEdit && (
                           <td className="py-3">
                             <ReadingRowActions
@@ -149,6 +169,8 @@ export default async function OperationsPage() {
                                 co2: r.co2,
                                 cleanliness: r.cleanliness,
                                 notes: r.notes,
+                                watered: r.watered,
+                                medicines: r.medicines,
                               }}
                             />
                           </td>
