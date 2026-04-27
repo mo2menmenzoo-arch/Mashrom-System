@@ -89,7 +89,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
           session.user.role = dbUser?.role ?? "OPERATOR";
         } else {
-          session.user.role = token.role as "ADMIN" | "OPERATOR" | "ACCOUNTANT";
+          session.user.role = token.role as "ADMIN" | "OPERATOR" | "ACCOUNTANT" | "VIEWER";
         }
       }
       return session;

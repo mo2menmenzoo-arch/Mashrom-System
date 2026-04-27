@@ -8,6 +8,7 @@ import { requireRole, perms, assertCycleOpen } from "@/lib/rbac";
 import { withAudit } from "@/lib/audit";
 import { cycleDayNumber } from "@/lib/cycle";
 import type { ActionResult } from "@/actions/cycle";
+import { MEDICINE_OPTIONS } from "@/lib/medicines";
 
 export type { ActionResult };
 
@@ -20,7 +21,7 @@ const readingSchema = z.object({
   cleanliness: z.enum(["EXCELLENT", "GOOD", "ACCEPTABLE", "POOR"]).optional(),
   notes: z.string().trim().max(500).optional(),
   watered: z.boolean().optional(),
-  medicines: z.array(z.string()).optional(),
+  medicines: z.array(z.enum(MEDICINE_OPTIONS)).optional(),
 });
 
 export async function createOperationReadingAction(formData: FormData): Promise<ActionResult> {

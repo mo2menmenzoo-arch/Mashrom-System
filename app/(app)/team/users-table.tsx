@@ -19,6 +19,7 @@ const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "مدير",
   OPERATOR: "مشغّل",
   ACCOUNTANT: "محاسب",
+  VIEWER: "مراقب",
 };
 
 function RoleCell({ user }: { user: User }) {
