@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createOperationReadingAction } from "@/actions/operation";
+import { MEDICINE_OPTIONS } from "@/lib/medicines";
 
 const CLEANLINESS_OPTIONS = [
   { value: "EXCELLENT", label: "ممتاز" },
@@ -112,6 +113,25 @@ export function ReadingForm({ cycleId }: { cycleId: string }) {
             maxLength={500}
             placeholder="أي ملاحظات تشغيلية..."
           />
+        </div>
+
+        <div className="space-y-2 lg:col-span-3">
+          <Label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="watered" className="h-4 w-4 rounded border-input" />
+            <span>تم الري اليوم</span>
+          </Label>
+        </div>
+
+        <div className="space-y-2 lg:col-span-3">
+          <Label>الأدوية المستخدمة (اختياري)</Label>
+          <div className="flex flex-wrap gap-3">
+            {MEDICINE_OPTIONS.map((med) => (
+              <Label key={med} className="flex items-center gap-1.5 cursor-pointer font-normal">
+                <input type="checkbox" name="medicines" value={med} className="h-4 w-4 rounded border-input" />
+                <span className="text-sm">{med}</span>
+              </Label>
+            ))}
+          </div>
         </div>
       </div>
 
