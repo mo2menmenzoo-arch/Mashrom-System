@@ -17,3 +17,28 @@ export async function toggleUserActive(userId: string) {
   await prisma.user.update({ where: { id: userId }, data: { active: !user.active } });
   revalidatePath("/settings/users");
 }
+
+export type PermissionsInput = {
+  viewOperations: boolean; editOperations: boolean;
+  viewSales: boolean;      editSales: boolean;
+  viewInventory: boolean;  editInventory: boolean;
+  viewExpenses: boolean;   editExpenses: boolean;
+  viewCustody: boolean;    editCustody: boolean;
+  viewReports: boolean;
+};
+
+export async function upsertUserPermissionsAction(userId: string, data: PermissionsInput) {
+  await requireRole(perms.usersManage);
+  await prisma.userPermissions.upsert({
+    where: { userId },
+    update: { ...data },
+    create: { userId, ...data },
+  });
+  revalidatePath("/settings/users");
+}
+
+export async function deleteUserPermissionsAction(userId: string) {
+  await requireRole(perms.usersManage);
+  await prisma.userPermissions.deleteMany({ where: { userId } });
+  revalidatePath("/settings/users");
+}

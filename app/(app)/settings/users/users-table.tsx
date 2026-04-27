@@ -5,6 +5,8 @@ import { Role } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { updateUserRole, toggleUserActive } from "./actions";
+import { PermissionsModal } from "./permissions-modal";
+import type { PermissionsInput } from "./actions";
 
 type User = {
   id: string;
@@ -13,6 +15,7 @@ type User = {
   role: Role;
   active: boolean;
   formattedDate: string;
+  permissions: PermissionsInput | null;
 };
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -57,7 +60,7 @@ function ActiveCell({ user }: { user: User }) {
   );
 }
 
-export function UsersTable({ users }: { users: User[] }) {
+export function UsersTable({ users, isAdmin }: { users: User[]; isAdmin: boolean }) {
   if (users.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
@@ -77,6 +80,7 @@ export function UsersTable({ users }: { users: User[] }) {
             <th className="py-2 font-medium">الحالة</th>
             <th className="py-2 font-medium">تاريخ الإنشاء</th>
             <th className="py-2 font-medium">إجراءات</th>
+            {isAdmin && <th className="py-2 font-medium">الصلاحيات</th>}
           </tr>
         </thead>
         <tbody>
@@ -92,6 +96,11 @@ export function UsersTable({ users }: { users: User[] }) {
               </td>
               <td className="py-3 tabular-nums">{user.formattedDate}</td>
               <td className="py-3"><ActiveCell user={user} /></td>
+              {isAdmin && (
+                <td className="py-3">
+                  <PermissionsModal user={{ id: user.id, name: user.name, email: user.email, permissions: user.permissions }} />
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
