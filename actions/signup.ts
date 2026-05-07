@@ -2,8 +2,8 @@
 
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { signIn } from "@/auth";
 
 const signupSchema = z.object({
   name: z.string().min(2, "الاسم يجب أن يكون حرفين على الأقل"),
@@ -40,5 +40,5 @@ export async function signupAction(_prev: SignupState, formData: FormData): Prom
     data: { name, email, password: hashed, role: "OPERATOR", active: true },
   });
 
-  await signIn("credentials", { email, password, redirectTo: "/dashboard" });
+  redirect("/login");
 }
