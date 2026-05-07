@@ -41,6 +41,13 @@ export const DELETE = withMobileAuth(async (_req, user, ctx) => {
   if (!cycle) return Response.json({ error: "الدورة غير موجودة" }, { status: 404 });
   const total = Object.values(cycle._count).reduce((s, n) => s + n, 0);
   if (total > 0) return Response.json({ error: "لا يمكن حذف دورة تحتوي على بيانات" }, { status: 409 });
-  await prisma.cycle.delete({ where: { id } });
+  await withAudit({
+    userId: user.id,
+    action: AuditAction.DELETE,
+    entity: "Cycle",
+    entityId: () => id,
+    before: { number: cycle.number, status: cycle.status },
+    mutate: (tx) => tx.cycle.delete({ where: { id } }),
+  });
   return Response.json({ ok: true });
 });
