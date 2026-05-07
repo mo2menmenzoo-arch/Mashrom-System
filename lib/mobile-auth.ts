@@ -3,7 +3,8 @@ import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "@/lib/db";
 import type { Role } from "@prisma/client";
 
-const secret = new TextEncoder().encode(process.env.AUTH_SECRET!);
+if (!process.env.AUTH_SECRET) throw new Error("AUTH_SECRET env var is not set");
+const secret = new TextEncoder().encode(process.env.AUTH_SECRET);
 const ALG = "HS256";
 const EXPIRY = "7d";
 
@@ -32,8 +33,10 @@ export async function getMobileUser(request: Request): Promise<MobileUser> {
   let userId: string;
   try {
     const { payload } = await jwtVerify(token, secret);
-    userId = payload.sub!;
-  } catch {
+    if (!payload.sub) throw Object.assign(new Error("UNAUTHORIZED"), { status: 401 });
+    userId = payload.sub;
+  } catch (jwtErr) {
+    console.error("[mobile-auth] JWT verification failed:", jwtErr);
     throw Object.assign(new Error("UNAUTHORIZED"), { status: 401 });
   }
 
