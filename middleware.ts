@@ -1,11 +1,19 @@
 import NextAuth from "next-auth";
 import { authConfig } from "./auth.config";
+import { NextRequest, NextResponse } from "next/server";
 
-export default NextAuth(authConfig).auth;
+const { auth } = NextAuth(authConfig);
+
+export default async function middleware(request: NextRequest) {
+  // Mobile API routes use their own JWT auth — bypass NextAuth completely
+  if (request.nextUrl.pathname.startsWith("/api/mobile")) {
+    return NextResponse.next();
+  }
+  return (auth as any)(request);
+}
 
 export const config = {
-  // Skip static assets, api/auth, service worker, icons, and next internals
   matcher: [
-    "/((?!api/auth|api/mobile|_next/static|_next/image|sw.js|manifest.webmanifest|icons|favicon.ico).*)",
+    "/((?!api/auth|_next/static|_next/image|sw.js|manifest.webmanifest|icons|favicon.ico).*)",
   ],
 };
