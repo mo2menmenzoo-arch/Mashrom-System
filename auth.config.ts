@@ -8,6 +8,7 @@ export const authConfig = {
   session: { strategy: "jwt" },
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
+      if (nextUrl.pathname.startsWith("/api/mobile")) return true;
       const isLoggedIn = !!auth?.user;
       const isPublic =
         nextUrl.pathname.startsWith("/login") ||
