@@ -60,9 +60,9 @@ export async function requireMobileRole(
 }
 
 export function withMobileAuth(
-  handler: (req: Request, user: MobileUser, ctx?: { params: Promise<Record<string, string>> }) => Promise<Response>,
+  handler: (req: Request, user: MobileUser, ctx: { params: Promise<Record<string, string>> }) => Promise<Response>,
 ) {
-  return async (req: Request, ctx?: { params: Promise<Record<string, string>> }) => {
+  return async (req: Request, ctx: { params: Promise<Record<string, string>> }) => {
     try {
       const user = await getMobileUser(req);
       return await handler(req, user, ctx);
