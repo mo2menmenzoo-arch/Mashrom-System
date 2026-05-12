@@ -1,30 +1,36 @@
-import NextAuth from "next-auth";
-import { authConfig } from "./auth.config";
-import type { NextAuthConfig } from "next-auth";
+import { NextRequest, NextResponse } from "next/server";
 
-const mobileAllowedConfig: NextAuthConfig = {
-  ...authConfig,
-  callbacks: {
-    ...authConfig.callbacks,
-    authorized({ auth, request: { nextUrl } }) {
-      // Mobile API routes have their own JWT — always pass through
-      if (nextUrl.pathname.startsWith("/api/mobile")) return true;
+export default function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
-      const isLoggedIn = !!auth?.user;
-      const isPublic =
-        nextUrl.pathname.startsWith("/login") ||
-        nextUrl.pathname.startsWith("/signup");
-      if (isPublic) {
-        if (isLoggedIn)
-          return Response.redirect(new URL("/dashboard", nextUrl));
-        return true;
-      }
-      return isLoggedIn;
-    },
-  },
-};
+  // Mobile API routes have their own JWT — always pass through
+  if (pathname.startsWith("/api/mobile")) {
+    return NextResponse.next();
+  }
 
-export default NextAuth(mobileAllowedConfig).auth;
+  // Check for NextAuth session cookie (HTTPS = __Secure prefix, HTTP = no prefix)
+  const sessionToken =
+    request.cookies.get("__Secure-authjs.session-token")?.value ??
+    request.cookies.get("authjs.session-token")?.value;
+
+  const isLoggedIn = Boolean(sessionToken);
+  const isPublicPage =
+    pathname.startsWith("/login") || pathname.startsWith("/signup");
+
+  if (isPublicPage) {
+    if (isLoggedIn)
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.next();
+  }
+
+  if (!isLoggedIn) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("callbackUrl", request.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
