@@ -1,0 +1,6 @@
+{
+  "name": "Mushroom System",
+  "description": "Mushroom System - نظام الماشروم المتكامل لإدارة الحسابات، الإنتاج، والتشغيل",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
