@@ -6,7 +6,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 const appLogo = '/logo.png';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { prodDb, demoDb, seedInitialData, injectDemoData, clearDemoData, runAtomicTransaction, exportEncryptedBackup, importEncryptedBackup, decryptValue, encryptValue, type User } from './db';
+import { prodDb, demoDb, seedInitialData, injectDemoData, clearDemoData, runAtomicTransaction, exportEncryptedBackup, importEncryptedBackup, decryptValue, encryptValue, registerSyncHandlers, syncTableToCloud, syncFromCloud, type User } from './db';
+import { pushTable, pullAll } from './firebase-sync';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -72,8 +73,6 @@ import {
   TrendingUp,
   Sun,
   Moon,
-  Sparkles,
-  Smartphone,
   BarChart3,
   Thermometer,
   DollarSign
@@ -231,6 +230,7 @@ export default function App() {
   const [payrollEmployeeId, setPayrollEmployeeId] = useState<number | null>(null);
   const [payrollCycleId, setPayrollCycleId] = useState<number | null>(null);
   const [payrollAmount, setPayrollAmount] = useState<number>(0);
+  const [payrollCalculated, setPayrollCalculated] = useState(false);
   const [payrollLoading, setPayrollLoading] = useState(false);
 
   // حالات مودال إدارة العهدة والمالية التفاعلي
@@ -249,7 +249,6 @@ export default function App() {
 
   // حالات مودال تأكيد الحذف المخصص لتفادي مشاكل الـ iframe المتوقعة ومقاطعة الحوارات الافتراضية
   const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
-  const [showBrandingModal, setShowBrandingModal] = useState(false);
   const [deleteTargetTable, setDeleteTargetTable] = useState('');
   const [deleteTargetId, setDeleteTargetId] = useState<any>(null);
   const [deleteTargetMessage, setDeleteTargetMessage] = useState('');
@@ -580,6 +579,12 @@ export default function App() {
           if (greenhouseCount === 0) {
             await injectDemoData(demoDb);
           }
+        }
+        // Register cloud sync handlers and pull on startup
+        registerSyncHandlers(pushTable, pullAll);
+        const syncMode = localStorage.getItem('mushroom_demo_mode') !== 'true';
+        if (syncMode) {
+          await syncFromCloud(prodDb);
         }
         setDbSeeded(true);
       } catch (err) {
@@ -1020,7 +1025,6 @@ export default function App() {
     { id: 'الشركاء', label: 'حصص الشركاء والأرباح', icon: Coins, roles: ['Admin'] },
     { id: 'التقارير', label: 'التقارير المالية والختامية', icon: FileBarChart, roles: ['Admin', 'Supervisor'] },
     { id: 'التحليلات', label: 'الرسوم البيانية والإنتاجية', icon: LineChart, roles: ['Admin', 'Supervisor'] },
-    { id: 'الهوية وتثبيت التطبيق', label: 'الهوية وتثبيت التطبيق', icon: Sparkles, roles: ['Admin', 'Supervisor', 'Operator'] },
     { id: 'دليل المستخدم', label: 'دليل المستخدم والتشغيل', icon: BookOpen, roles: ['Admin', 'Supervisor', 'Operator'] },
     { id: 'المصدر العام لقاعدة البيانات', label: 'المصدر العام لقاعدة البيانات', icon: Database, roles: ['Admin'] },
   ];
@@ -2019,11 +2023,7 @@ export default function App() {
         {/* هيدر القائمة الجانبية */}
         <div className="p-6 flex items-center gap-3 border-b border-slate-800">
           <button 
-            onClick={() => {
-              setShowBrandingModal(true);
-            }}
-            className="w-11 h-11 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-950/40 overflow-hidden border border-emerald-500/30 bg-slate-800/60 p-0.5 cursor-pointer active:scale-95 hover:border-emerald-500/60 transition-all duration-200"
-            title="انقر لتكبير الشعار والتفاعل معه"
+            className="w-11 h-11 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-950/40 overflow-hidden border border-emerald-500/30 bg-slate-800/60 p-0.5"
           >
             <img src={appLogo} alt="Mushroom System" className="w-full h-full object-cover rounded-lg" referrerPolicy="no-referrer" />
           </button>
@@ -2120,12 +2120,7 @@ export default function App() {
           <div className="p-5 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button 
-                onClick={() => {
-                  setShowBrandingModal(true);
-                  setMobileMenuOpen(false);
-                }}
-                className="w-9 h-9 rounded-lg flex items-center justify-center shadow-md overflow-hidden bg-slate-800/80 p-0.5 border border-emerald-500/20 active:scale-95 hover:border-emerald-500/50 transition-all duration-200"
-                title="انقر لتكبير الشعار والتفاعل معه"
+                className="w-9 h-9 rounded-lg flex items-center justify-center shadow-md overflow-hidden bg-slate-800/80 p-0.5 border border-emerald-500/20"
               >
                 <img src={appLogo} alt="Mushroom System" className="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
               </button>
@@ -2549,115 +2544,6 @@ export default function App() {
                           </div>
                         ))
                       )}
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* 1.5. قسم المظهر الرقمي وتثبيت التطبيق (Digital Identity, Link Preview & PWA Shortcut Install) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                  
-                  {/* أ. هوية الرابط والمعاينة الاجتماعية (Link Preview & Social Card) */}
-                  <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-2">
-                        <span className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">🔗</span>
-                        <span>بطاقة المعاينة والمشاركة السحابية | Link Preview Card</span>
-                      </h3>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        هذه هي بطاقة المعاينة الفاخرة للرابط الموحد للموقع <code className="bg-slate-100 text-emerald-700 px-1 py-0.5 rounded font-bold">mushfarm.app</code> المخصصة لمنصات التواصل ومجموعات الواتساب وتطبيقات المحادثات الاحترافية:
-                      </p>
-                    </div>
-
-                    {/* محاكاة المعاينة الفاخرة */}
-                    <div className="border border-slate-200/80 rounded-xl overflow-hidden bg-slate-50 p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <div className="relative rounded-lg overflow-hidden border border-slate-200/60 bg-slate-900 aspect-[1.91/1] flex items-center justify-center">
-                        <img 
-                          src="/link_preview_card.jpg?v=11" 
-                          alt="Mushroom System Link Preview" 
-                          className="w-full h-full object-cover" 
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            e.currentTarget.src = appLogo;
-                          }}
-                        />
-                      </div>
-                      <div className="mt-3 flex items-center justify-between text-xs">
-                        <div className="space-y-1">
-                          <span className="font-bold text-slate-800 block">Mushroom System | نظام مزارع الفطر</span>
-                          <span className="text-slate-400 block text-[10px]">mushfarm.app</span>
-                        </div>
-                        <button 
-                          onClick={() => {
-                            navigator.clipboard.writeText("https://mushfarm.app/");
-                            alert("تم نسخ رابط النظام الموحد بنجاح!");
-                          }}
-                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 transition-colors border border-emerald-200/50 cursor-pointer active:scale-95"
-                        >
-                          <span>نسخ الرابط</span>
-                          <span>📋</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="text-[11px] text-slate-400 bg-slate-50/50 p-2.5 rounded-lg border border-slate-100 text-center">
-                      تم دمج وتحسين أوزان الصور التعريفية (<code className="text-emerald-600">OpenGraph Meta</code>) لضمان سرعة تحميل البطاقة بامتياز.
-                    </div>
-                  </div>
-
-                  {/* ب. تثبيت كاختصار ومزامنة فورية (Shortcut Install & PWA Engine) */}
-                  <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-2">
-                        <span className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">📲</span>
-                        <span>تثبيت اختصار النظام على الشاشة | Shortcut Installation</span>
-                      </h3>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        قم بتثبيت التطبيق على هاتفك المحمول أو جهاز الحاسوب للوصول السريع بدون متصفح، والاستمتاع بتجربة إدارة كاملة الشاشة مع تحسين زمن الاستجابة في المزرعة:
-                      </p>
-                    </div>
-
-                    {/* زر التثبيت التفاعلي */}
-                    <div className="p-4 rounded-xl bg-slate-900/95 text-slate-100 border border-slate-800 shadow-xl flex items-center gap-4 relative overflow-hidden group">
-                      <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-emerald-500/10 blur-xl group-hover:bg-emerald-500/20 transition-all duration-500" />
-                      
-                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg border border-slate-800 bg-slate-950 shrink-0 relative z-10 overflow-hidden p-0.5">
-                        <img src={appLogo} alt="Mushroom System" className="w-full h-full object-cover rounded-xl" referrerPolicy="no-referrer" />
-                      </div>
-                      
-                      <div className="flex-1 relative z-10">
-                        <h4 className="font-bold text-xs text-white">نظام مزارع الفطر كـ تطبيق مستقل</h4>
-                        <p className="text-[10px] text-slate-400 mt-1 leading-normal">تصفح فوري، بدون شريط عنوان، وتحكم سلس بمجرد النقر والضغط.</p>
-                        
-                        <div className="mt-3 flex gap-2">
-                          <button 
-                            onClick={() => {
-                              if ('share' in navigator) {
-                                alert("لتثبيت التطبيق على هواتف iOS: اضغط على زر 'مشاركة' ثم اختر 'إضافة إلى الشاشة الرئيسية'.\n\nلهواتف Android: اضغط على النقاط الثلاث في المتصفح ثم اختر 'تثبيت التطبيق'.");
-                              } else {
-                                alert("لتثبيت التطبيق: اضغط على زر القائمة في المتصفح (⋮) ثم اختر 'تثبيت التطبيق' أو 'Add to Home Screen'.");
-                              }
-                            }}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] px-4 py-2 rounded-lg shadow-lg shadow-emerald-950/20 transition-all active:scale-95 cursor-pointer"
-                          >
-                            تثبيت كاختصار الآن ⚡
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">خطوات التثبيت السريع:</span>
-                      <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500 font-sans">
-                        <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                          <strong className="text-slate-800 block mb-0.5">آيفون (Safari):</strong>
-                          اضغط على <span className="text-emerald-600 font-bold">مشاركة</span> ثم <span className="text-emerald-600 font-bold">إضافة للشاشة الرئيسية</span>.
-                        </div>
-                        <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                          <strong className="text-slate-800 block mb-0.5">أندرويد (Chrome):</strong>
-                          اضغط على <span className="text-emerald-600 font-bold">تثبيت التطبيق</span> من خيارات المتصفح العلوية.
-                        </div>
-                      </div>
                     </div>
                   </div>
 
@@ -4491,260 +4377,6 @@ export default function App() {
 
 
 
-            {/* التبويب: الهوية وتثبيت التطبيق */}
-            {activeTab === 'الهوية وتثبيت التطبيق' && (
-              <div className="space-y-6 text-right" dir="rtl">
-                
-                {/* 1. بنتو شعار الهوية المعتمد */}
-                <div className="bg-slate-900 text-slate-100 p-6 rounded-2xl border border-slate-800 shadow-xl relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-80 h-80 rounded-full bg-emerald-500/5 blur-3xl pointer-events-none" />
-                  <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full bg-amber-500/5 blur-3xl pointer-events-none" />
-                  
-                  <div className="flex flex-col md:flex-row items-center gap-6 relative z-10">
-                    {/* الشعار التفاعلي الحقيقي الجديد */}
-                    <div className="relative group shrink-0">
-                      <div className="absolute inset-0 bg-emerald-500/20 rounded-3xl blur-md group-hover:blur-lg transition-all opacity-80" />
-                      <button 
-                        onClick={() => setShowBrandingModal(true)}
-                        className="w-28 h-28 md:w-36 md:h-36 rounded-3xl overflow-hidden bg-slate-950 border border-slate-800/80 p-1 flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_30px_rgba(16,185,129,0.15)] relative z-10"
-                        title="انقر لتكبير الشعار والتفاعل معه"
-                      >
-                        <img 
-                          src={appLogo} 
-                          alt="Mushroom System Gold Emblem" 
-                          className="w-full h-full object-cover rounded-2xl" 
-                          referrerPolicy="no-referrer" 
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-2xl">
-                          <span className="text-white text-xs font-bold bg-slate-900/80 px-2.5 py-1 rounded-full border border-slate-700/60 flex items-center gap-1.5">
-                            <span>تكبير</span>
-                            <span>🔍</span>
-                          </span>
-                        </div>
-                      </button>
-                    </div>
-
-                    <div className="flex-1 text-center md:text-right space-y-3">
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20 text-[10px] font-mono font-bold tracking-wider uppercase">
-                        <span>New Active Identity</span>
-                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
-                      </div>
-                      <h3 className="text-xl font-bold text-white tracking-tight">شعار مزارع الفطر الذهبي الموحد</h3>
-                      <p className="text-xs text-slate-400 leading-relaxed max-w-2xl">
-                        يمثل هذا الشعار الاندماج المثالي بين جودة الطبيعة والفطر العضوي، والهوية التقنية السحابية المتكاملة لمشروع <code className="bg-slate-950/50 px-1.5 py-0.5 rounded text-emerald-400">mushfarm.app</code>. تم استخدام تدرجات الذهب الإمبراطوري مع الأوراق العضوية الخضراء والأرضية الداكنة لإبراز الفخامة والاستدامة.
-                      </p>
-                      
-                      <div className="pt-2 flex flex-wrap justify-center md:justify-start gap-2.5">
-                        <button 
-                          onClick={() => setShowBrandingModal(true)}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] px-4 py-2 rounded-xl transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-950/30"
-                        >
-                          <span>عرض فائق الدقة (Tap Action)</span>
-                          <span>🌟</span>
-                        </button>
-                        <a 
-                          href={appLogo} 
-                          download="mushroom_logo_gold.jpg"
-                          className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-[11px] px-4 py-2 rounded-xl transition-all flex items-center gap-1.5"
-                        >
-                          <span>تحميل الشعار الأصلي</span>
-                          <span>💾</span>
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. الروابط المزامنة وبطاقات المعاينة (Link Preview & App Shortcut Install) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  
-                  {/* أ. بطاقة المعاينة والمشاركة السحابية (Link Preview) */}
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-2">
-                        <span className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">🔗</span>
-                        <span>بطاقة المعاينة والروابط السحابية | Link Preview</span>
-                      </h4>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        هذه هي بطاقة المعاينة الفاخرة للرابط الموحد للموقع <code className="bg-slate-100 text-emerald-700 px-1 py-0.5 rounded font-bold">mushfarm.app</code> المخصصة لمنصات التواصل ومجموعات الواتساب وتطبيقات المحادثات الاحترافية:
-                      </p>
-                    </div>
-
-                    {/* محاكاة المعاينة الفاخرة */}
-                    <div className="border border-slate-200/80 rounded-xl overflow-hidden bg-slate-50 p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <div className="relative rounded-lg overflow-hidden border border-slate-200/60 bg-slate-900 aspect-[1.91/1] flex items-center justify-center">
-                        <img 
-                          src="/link_preview_card.jpg?v=11" 
-                          alt="Mushroom System Link Preview" 
-                          className="w-full h-full object-cover" 
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            e.currentTarget.src = appLogo;
-                          }}
-                        />
-                      </div>
-                      <div className="mt-3 flex items-center justify-between text-xs">
-                        <div className="space-y-1">
-                          <span className="font-bold text-slate-800 block">Mushroom System | نظام مزارع الفطر</span>
-                          <span className="text-slate-400 block text-[10px]">mushfarm.app</span>
-                        </div>
-                        <button 
-                          onClick={() => {
-                            navigator.clipboard.writeText("https://mushfarm.app/");
-                            alert("تم نسخ رابط النظام الموحد بنجاح!");
-                          }}
-                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 transition-colors border border-emerald-200/50 cursor-pointer active:scale-95"
-                        >
-                          <span>نسخ الرابط</span>
-                          <span>📋</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="text-[11px] text-slate-400 bg-slate-50/50 p-2.5 rounded-lg border border-slate-100 text-center">
-                      تم دمج وتحسين أوزان الصور التعريفية (<code className="text-emerald-600">OpenGraph Meta</code>) لضمان سرعة تحميل البطاقة بامتياز.
-                    </div>
-                  </div>
-
-                  {/* ب. تثبيت كاختصار ومزامنة فورية (Shortcut Install) */}
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-2">
-                        <span className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">📲</span>
-                        <span>تثبيت اختصار النظام على الشاشة | Shortcut Installation</span>
-                      </h4>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        قم بتثبيت التطبيق على هاتفك المحمول أو جهاز الحاسوب للوصول السريع بدون متصفح، والاستمتاع بتجربة إدارة كاملة الشاشة مع تحسين زمن الاستجابة في المزرعة:
-                      </p>
-                    </div>
-
-                    {/* زر التثبيت التفاعلي */}
-                    <div className="p-4 rounded-xl bg-slate-900/95 text-slate-100 border border-slate-800 shadow-xl flex items-center gap-4 relative overflow-hidden group">
-                      <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-emerald-500/10 blur-xl group-hover:bg-emerald-500/20 transition-all duration-500" />
-                      
-                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg border border-slate-800 bg-slate-950 shrink-0 relative z-10 overflow-hidden p-0.5">
-                        <img src={appLogo} alt="Mushroom System" className="w-full h-full object-cover rounded-xl" referrerPolicy="no-referrer" />
-                      </div>
-                      
-                      <div className="flex-1 relative z-10">
-                        <h4 className="font-bold text-xs text-white">نظام مزارع الفطر كـ تطبيق مستقل</h4>
-                        <p className="text-[10px] text-slate-400 mt-1 leading-normal">تصفح فوري، بدون شريط عنوان، وتحكم سلس بمجرد النقر والضغط.</p>
-                        
-                        <div className="mt-3 flex gap-2">
-                          <button 
-                            onClick={() => {
-                              if ('share' in navigator) {
-                                alert("لتثبيت التطبيق على هواتف iOS: اضغط على زر 'مشاركة' ثم اختر 'إضافة إلى الشاشة الرئيسية'.\n\nلهواتف Android: اضغط على النقاط الثلاث في المتصفح ثم اختر 'تثبيت التطبيق'.");
-                              } else {
-                                alert("لتثبيت التطبيق: اضغط على زر القائمة في المتصفح (⋮) ثم اختر 'تثبيت التطبيق' أو 'Add to Home Screen'.");
-                              }
-                            }}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] px-4 py-2 rounded-lg shadow-lg shadow-emerald-950/20 transition-all active:scale-95 cursor-pointer"
-                          >
-                            تثبيت كاختصار الآن ⚡
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">خطوات التثبيت السريع:</span>
-                      <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500 font-sans">
-                        <div className="bg-slate-50 p-2.5 rounded border border-slate-100">
-                          <strong className="text-slate-800 block mb-0.5">آيفون (Safari):</strong>
-                          اضغط على <span className="text-emerald-600 font-bold">مشاركة</span> ثم <span className="text-emerald-600 font-bold">إضافة للشاشة الرئيسية</span>.
-                        </div>
-                        <div className="bg-slate-50 p-2.5 rounded border border-slate-100">
-                          <strong className="text-slate-800 block mb-0.5">أندرويد (Chrome):</strong>
-                          اضغط على <span className="text-emerald-600 font-bold">تثبيت التطبيق</span> من خيارات المتصفح العلوية.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* 3. لوحة الألوان والأسيتات المعتمدة للهوية */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <span className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">🎨</span>
-                      <span>حقيبة الهوية والأصول الرقمية المعتمدة | Brand Asset Kit</span>
-                    </h4>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      نظام مزارع الفطر الموحد يلتزم الصرامة البصرية الفائقة. يمنع منعاً باتاً استخدام أي شعارات قديمة أو صور خارجية، ويتم الاكتفاء التام بالشعار الجديد وهويته البصرية المكونة من لوحة الألوان التالية:
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="p-4 rounded-xl border border-slate-100 bg-slate-950 text-slate-100 flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <span className="text-[10px] text-slate-400 block font-semibold">لون الخلفية والعمق</span>
-                        <span className="text-xs font-bold text-white block">Deep Slate Slate-950</span>
-                        <code className="text-[10px] text-emerald-400 block font-bold font-mono">#020617</code>
-                      </div>
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText("#020617");
-                          alert("تم نسخ كود اللون #020617 بنجاح!");
-                        }}
-                        className="p-1.5 hover:bg-slate-900 rounded text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
-                        title="نسخ كود اللون"
-                      >
-                        📋
-                      </button>
-                    </div>
-
-                    <div className="p-4 rounded-xl border border-slate-100 bg-emerald-600 text-white flex items-center justify-between shadow-sm">
-                      <div className="space-y-0.5">
-                        <span className="text-[10px] text-emerald-200 block font-semibold">اللون الحيوي والنمو</span>
-                        <span className="text-xs font-bold text-white block">Emerald Green</span>
-                        <code className="text-[10px] text-emerald-200 block font-bold font-mono">#10B981</code>
-                      </div>
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText("#10B981");
-                          alert("تم نسخ كود اللون #10B981 بنجاح!");
-                        }}
-                        className="p-1.5 hover:bg-emerald-700 rounded text-white cursor-pointer"
-                        title="نسخ كود اللون"
-                      >
-                        📋
-                      </button>
-                    </div>
-
-                    <div className="p-4 rounded-xl border border-slate-100 bg-amber-500 text-white flex items-center justify-between shadow-sm">
-                      <div className="space-y-0.5">
-                        <span className="text-[10px] text-amber-100 block font-semibold">تدرج الذهب والإمبراطورية</span>
-                        <span className="text-xs font-bold text-white block">Gold Accent</span>
-                        <code className="text-[10px] text-amber-100 block font-bold font-mono">#F59E0B</code>
-                      </div>
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText("#F59E0B");
-                          alert("تم نسخ كود اللون #F59E0B بنجاح!");
-                        }}
-                        className="p-1.5 hover:bg-amber-600 rounded text-white cursor-pointer"
-                        title="نسخ كود اللون"
-                      >
-                        📋
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-500 space-y-1.5">
-                    <p className="font-bold text-slate-700">📌 مبادئ التكامل الرقمي وتفادي العشوائية:</p>
-                    <ul className="list-disc pr-5 space-y-1">
-                      <li>تم دمج الشعار الذهبي بشكل متزامن على شاشات الهواتف كـ <strong className="text-slate-800">Shortcut Icon</strong> وأيقونات الفتح السريع.</li>
-                      <li>تم إلغاء واستبدال كافة الصور القديمة المبرمجة بالكامل واستبدالها بنسخة الشعار المطورة الحالية لتأكيد التماسك الهيكلي والمظهري.</li>
-                    </ul>
-                  </div>
-                </div>
-
-              </div>
-            )}
-
-
             {/* التبويب 12: دليل المستخدم */}
             {activeTab === 'دليل المستخدم' && (
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6 text-right" dir="rtl">
@@ -5140,11 +4772,7 @@ export default function App() {
             {/* هيدر بوابة الأمن */}
             <div className="text-center mb-8 max-w-md">
               <div 
-                className="w-32 h-32 md:w-36 md:h-36 rounded-full flex items-center justify-center shadow-2xl mx-auto mb-6 overflow-hidden border-4 border-amber-400/60 bg-slate-900 p-1.5 shadow-[0_0_30px_rgba(245,158,11,0.25)] hover:border-amber-400/80 hover:scale-105 active:scale-95 cursor-pointer transition-all duration-300"
-                onClick={() => {
-                  setShowBrandingModal(true);
-                }}
-                title="انقر لعرض هوية الشعار بالكامل"
+                className="w-32 h-32 md:w-36 md:h-36 rounded-full flex items-center justify-center shadow-2xl mx-auto mb-6 overflow-hidden border-4 border-amber-400/60 bg-slate-900 p-1.5 shadow-[0_0_30px_rgba(245,158,11,0.25)]"
               >
                 <img src={appLogo} alt="Mushroom System" className="w-full h-full rounded-full object-cover" referrerPolicy="no-referrer" />
               </div>
@@ -6374,22 +6002,40 @@ export default function App() {
                 </select>
               </div>
 
-              {payrollAmount > 0 && (
+              {payrollCalculated && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-center">
-                  <p className="text-slate-600 mb-1">المبلغ المستحق</p>
-                  <p className="text-2xl font-bold text-emerald-600">{payrollAmount.toLocaleString('ar-EG')} ج.م</p>
+                  <p className="text-slate-600 mb-1">المبلغ المستحق (صافي)</p>
+                  <p className={`text-2xl font-bold ${payrollAmount > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{payrollAmount.toLocaleString('ar-EG')} ج.م</p>
+                  {payrollEmployeeId && (() => {
+                    const emp = employeesList.find(e => e.id === payrollEmployeeId);
+                    if (!emp) return null;
+                    return (
+                      <div className="mt-2 text-[10px] text-slate-500 space-y-0.5">
+                        <p>الراتب الأساسي: {emp.base_salary.toLocaleString()} | السلف: {emp.total_advances.toLocaleString()} | المكافآت: {emp.total_bonuses.toLocaleString()}</p>
+                        {emp.salary_type !== 'fixed' && <p>سعر اليوم: {emp.daily_rate || 0} | سعر الكرتونة: {emp.productivity_price_per_box || 0}</p>}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={async () => {
-                    if (!payrollEmployeeId || !payrollCycleId) return;
+                    if (!payrollEmployeeId || !payrollCycleId) {
+                      setAlertModalMessage('يرجى اختيار الموظف والدورة أولاً.');
+                      setShowAlertModal(true);
+                      return;
+                    }
                     setPayrollLoading(true);
                     try {
                       const activeDb = demoMode ? demoDb : prodDb;
                       const employee = await activeDb.employees.get(payrollEmployeeId);
-                      if (!employee) return;
+                      if (!employee) {
+                        setAlertModalMessage('لم يتم العثور على الموظف المحدد.');
+                        setShowAlertModal(true);
+                        return;
+                      }
 
                       let amount = 0;
                       if (employee.salary_type === 'fixed') {
@@ -6397,24 +6043,31 @@ export default function App() {
                       } else if (employee.salary_type === 'daily') {
                         const attendance = await activeDb.operational_logs
                           .where('cycle_id')
-                          .equals(payrollCycleId)
+                          .equals(payrollCycleId!)
                           .count();
-                        amount = attendance * (employee.daily_rate || 0);
+                        amount = attendance * (employee.daily_rate || employee.base_salary / 30);
                       } else if (employee.salary_type === 'productivity') {
                         const attendance = await activeDb.operational_logs
                           .where('cycle_id')
-                          .equals(payrollCycleId)
+                          .equals(payrollCycleId!)
                           .count();
                         const harvest = await activeDb.production
                           .where('cycle_id')
-                          .equals(payrollCycleId)
+                          .equals(payrollCycleId!)
                           .count();
-                        amount = attendance * (employee.daily_rate || 0) + harvest * (employee.productivity_price_per_box || 0);
+                        amount = attendance * (employee.daily_rate || employee.base_salary / 30) + harvest * (employee.productivity_price_per_box || 0);
                       }
 
+                      // Net: subtract advances, add bonuses
+                      amount = amount - employee.total_advances + employee.total_bonuses;
+                      amount = Math.max(amount, 0);
+
                       setPayrollAmount(amount);
+                      setPayrollCalculated(true);
                     } catch (err) {
                       console.error('Error calculating payroll:', err);
+                      setAlertModalMessage('حدث خطأ أثناء حساب الراتب.');
+                      setShowAlertModal(true);
                     } finally {
                       setPayrollLoading(false);
                     }
@@ -6425,7 +6078,7 @@ export default function App() {
                   {payrollLoading ? 'جاري الحساب...' : 'حساب الراتب'}
                 </button>
 
-                {payrollAmount > 0 && (
+                {payrollCalculated && payrollAmount > 0 && (
                   <button
                     onClick={async () => {
                       if (!payrollEmployeeId || !payrollCycleId || payrollAmount <= 0) return;
@@ -6442,6 +6095,7 @@ export default function App() {
                         triggerStateRefresh();
                         setShowPayrollModal(false);
                         setPayrollAmount(0);
+                        setPayrollCalculated(false);
                         setPayrollEmployeeId(null);
                         setPayrollCycleId(null);
                       } catch (err) {
@@ -6609,97 +6263,6 @@ export default function App() {
             >
               حسناً، فهمت
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* ==========================================
-          ط. مودال استعراض الهوية والشعار التفاعلي عالي الدقة (Tap Action)
-          ========================================== */}
-      {showBrandingModal && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 overflow-y-auto bg-slate-950/90 backdrop-blur-md animate-fade-in" dir="rtl">
-          <div className="fixed inset-0" onClick={() => setShowBrandingModal(false)} />
-          
-          <div className="bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl p-6 w-full max-w-lg z-50 relative animate-scale-in space-y-6">
-            
-            {/* الهيدر */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-2.5">
-                <span className="p-1.5 bg-amber-500/10 text-amber-500 rounded-lg text-sm">🌟</span>
-                <div>
-                  <h3 className="font-bold text-white text-sm leading-tight">الهوية البصرية عالية الدقة</h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5">شعار مزارع الفطر الذهبي الموحد</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowBrandingModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer active:scale-95"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* عرض الشعار مع تأثير النبض المتوهج الحقيقي */}
-            <div className="flex flex-col items-center justify-center py-4">
-              <div className="relative group max-w-[240px] w-full aspect-square rounded-[32px] overflow-hidden border-2 border-emerald-500/30 bg-slate-950 p-1 shadow-[0_0_40px_rgba(16,185,129,0.25)] hover:border-emerald-500/60 transition-all duration-300">
-                <img 
-                  src={appLogo} 
-                  alt="Mushroom Gold Emblem Premium" 
-                  className="w-full h-full object-cover rounded-[26px]" 
-                  referrerPolicy="no-referrer" 
-                />
-              </div>
-              <p className="text-[10px] text-slate-400 font-mono mt-3 text-center">Aspect Ratio: 1:1 (Squared Crown Emblem)</p>
-            </div>
-
-            {/* تفاصيل الهوية البصرية */}
-            <div className="space-y-3.5">
-              <h4 className="text-xs font-bold text-white">تفاصيل ومواصفات الشعار:</h4>
-              <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-300">
-                <div className="bg-slate-950/65 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-slate-500 block mb-0.5">اسم الشعار</span>
-                  <strong className="text-white">Gold Mushroom Crest</strong>
-                </div>
-                <div className="bg-slate-950/65 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-slate-500 block mb-0.5">تاريخ الاعتماد</span>
-                  <strong className="text-emerald-400">يوليو ٢٠٢٦ (نشط وموحد)</strong>
-                </div>
-                <div className="bg-slate-950/65 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-slate-500 block mb-0.5">التأثيرات البصرية</span>
-                  <strong className="text-white">تفاصيل بارزة ثلاثية الأبعاد</strong>
-                </div>
-                <div className="bg-slate-950/65 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-slate-500 block mb-0.5">الرابط المعتمد</span>
-                  <strong className="text-amber-500">mushfarm.app</strong>
-                </div>
-              </div>
-            </div>
-
-            {/* خيارات سريعة وتفاعل */}
-            <div className="pt-2 flex gap-3">
-              <a 
-                href={appLogo}
-                download="mushroom_logo_premium.jpg"
-                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-md shadow-emerald-950/30"
-              >
-                <span>تحميل بدقة فائقة</span>
-                <span>💾</span>
-              </a>
-              <button 
-                onClick={() => {
-                  navigator.clipboard.writeText("https://mushfarm.app/");
-                  alert("تم نسخ رابط النظام الموحد بنجاح!");
-                }}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-100 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-slate-700"
-              >
-                <span>نسخ الرابط الموحد</span>
-                <span>📋</span>
-              </button>
-            </div>
-
-            <div className="text-[10px] text-slate-400 text-center leading-relaxed">
-              * تم إلغاء كافة صور الهوية والشعارات القديمة والبديلة، واعتماد الشعار الذهبي كعنصر أحادي وحصري للنظام السحابي.
-            </div>
           </div>
         </div>
       )}

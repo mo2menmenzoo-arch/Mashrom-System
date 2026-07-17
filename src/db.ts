@@ -592,3 +592,63 @@ export async function importEncryptedBackup(database: MushroomFarmDatabase, file
   });
 }
 
+// ==========================================
+// 6. Cloud Sync Integration Points
+// ==========================================
+
+const SYNC_TABLES = [
+  'users', 'partners', 'greenhouses', 'cycles', 'inventory',
+  'petty_cash', 'transactions', 'expenses', 'operational_logs',
+  'employees', 'assets', 'production'
+] as const;
+
+type SyncTableName = typeof SYNC_TABLES[number];
+
+let _syncPush: ((table: SyncTableName, data: any[]) => Promise<void>) | null = null;
+let _syncPullAll: (() => Promise<Record<string, any[]>>) | null = null;
+
+/** Register sync handlers from firebase-sync.ts (avoids circular import). */
+export function registerSyncHandlers(
+  push: (table: SyncTableName, data: any[]) => Promise<void>,
+  pullAll: () => Promise<Record<string, any[]>>
+) {
+  _syncPush = push;
+  _syncPullAll = pullAll;
+}
+
+/** Push a single table's data to cloud after local write. */
+export async function syncTableToCloud(database: MushroomFarmDatabase, tableName: string) {
+  if (!_syncPush) return;
+  try {
+    const data = await database.table(tableName).toArray();
+    await _syncPush(tableName as SyncTableName, data);
+  } catch (e) {
+    console.warn(`[sync] push "${tableName}" failed:`, e);
+  }
+}
+
+/** Pull all tables from cloud and merge into local database. */
+export async function syncFromCloud(database: MushroomFarmDatabase): Promise<boolean> {
+  if (!_syncPullAll) return false;
+  try {
+    const cloudData = await _syncPullAll();
+    const tables = [...SYNC_TABLES];
+
+    await database.transaction('rw', tables as any, async () => {
+      for (const table of tables) {
+        const rows = cloudData[table];
+        if (rows && rows.length > 0) {
+          // Clear and replace — cloud is source of truth for shared data
+          await database.table(table).clear();
+          await database.table(table).bulkPut(rows);
+        }
+      }
+    });
+
+    return true;
+  } catch (e) {
+    console.warn('[sync] pull failed:', e);
+    return false;
+  }
+}
+
