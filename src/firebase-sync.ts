@@ -61,6 +61,11 @@ export async function pushAll(getter: (t: TableName) => Promise<any[]>): Promise
   }
 }
 
+/** Returns true if Firebase DB URL is configured and sync is available. */
+export function isSyncConfigured(): boolean {
+  return FIREBASE_DB_URL.length > 0;
+}
+
 /** Pull every table from the cloud. Returns a map of tableName → rows. */
 export async function pullAll(): Promise<Record<string, any[]>> {
   const result: Record<string, any[]> = {};

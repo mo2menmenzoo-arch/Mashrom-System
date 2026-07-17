@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 const appLogo = '/logo.png';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { prodDb, demoDb, seedInitialData, injectDemoData, clearDemoData, runAtomicTransaction, exportEncryptedBackup, importEncryptedBackup, decryptValue, encryptValue, registerSyncHandlers, syncTableToCloud, syncFromCloud, type User } from './db';
-import { pushTable, pullAll } from './firebase-sync';
+import { pushTable, pullAll, isSyncConfigured } from './firebase-sync';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -346,6 +346,7 @@ export default function App() {
 
       // إعادة عرض كامل وحي للبيانات التفاعلية
       triggerStateRefresh();
+      syncAfterWrite(internalTable);
 
     } catch (error: any) {
       console.error("Critical Delete Error:", error);
@@ -387,6 +388,7 @@ export default function App() {
       setShowAddAssetModal(false);
       setShowAlertModal(true);
       triggerStateRefresh();
+      syncAfterWrite('assets');
     } catch (err: any) {
       console.error("Asset Save Error:", err);
       alert("❌ فشل حفظ الأصل: " + err.message);
@@ -424,6 +426,7 @@ export default function App() {
       setShowAddPartnerModal(false);
       setShowAlertModal(true);
       triggerStateRefresh();
+      syncAfterWrite('partners');
     } catch (err: any) {
       console.error("Partner Save Error:", err);
       alert("❌ فشل حفظ الشريك: " + err.message);
@@ -433,6 +436,16 @@ export default function App() {
   // مؤشر تحفيز تحديث البيانات والرسوم لضمان الفورية والمزامنة الكاملة
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const triggerStateRefresh = () => setRefreshTrigger(prev => prev + 1);
+
+  const syncAfterWrite = async (tableName: string) => {
+    if (!isSyncConfigured() || demoMode) return;
+    try {
+      const data = await activeDb.table(tableName).toArray();
+      await pushTable(tableName as any, data);
+    } catch (e) {
+      console.warn(`[sync] push after write to "${tableName}" failed:`, e);
+    }
+  };
 
   useEffect(() => {
     (window as any).refreshSystemUI = () => {
@@ -583,7 +596,7 @@ export default function App() {
         // Register cloud sync handlers and pull on startup
         registerSyncHandlers(pushTable, pullAll);
         const syncMode = localStorage.getItem('mushroom_demo_mode') !== 'true';
-        if (syncMode) {
+        if (syncMode && isSyncConfigured()) {
           await syncFromCloud(prodDb);
         }
         setDbSeeded(true);
@@ -593,6 +606,26 @@ export default function App() {
     }
     initDB();
   }, []);
+
+  // Periodic pull from cloud when visible + every 30s
+  useEffect(() => {
+    if (!isSyncConfigured() || demoMode) return;
+    const pullOnFocus = async () => {
+      try {
+        await syncFromCloud(prodDb);
+        triggerStateRefresh();
+      } catch (e) { console.warn('[sync] pull failed:', e); }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') pullOnFocus();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    const interval = setInterval(pullOnFocus, 30000);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(interval);
+    };
+  }, [demoMode]);
 
   // تسجيل دوال الحذف والتعديل الموحدة بالنافذة العالمية لتفادي فقدان مستمعي الأحداث وإعادة العرض
   useEffect(() => {
@@ -1244,6 +1277,7 @@ export default function App() {
 
       // إعادة تعيين الحقول وإغلاق المودال بنجاح
       triggerStateRefresh();
+      syncAfterWrite('cycles');
       setShowAddCycleModal(false);
       setEditingId(null);
       setNewCycleNumber('');
@@ -1419,6 +1453,7 @@ export default function App() {
 
       // إغلاق المودال وتصفير الحقول
       triggerStateRefresh();
+      syncAfterWrite('expenses');
       setShowAddExpenseModal(false);
       setEditingId(null);
       setNewExpenseDetails('');
@@ -1484,6 +1519,7 @@ export default function App() {
       }
 
       triggerStateRefresh();
+      syncAfterWrite('operational_logs');
       setShowAddClimateModal(false);
       setEditingId(null);
       setClimateTemp('');
@@ -1537,6 +1573,7 @@ export default function App() {
       }
 
       triggerStateRefresh();
+      syncAfterWrite('operational_logs');
       setShowAddHarvestModal(false);
       setEditingId(null);
       setHarvestWeight('');
@@ -1584,6 +1621,7 @@ export default function App() {
       }
 
       triggerStateRefresh();
+      syncAfterWrite('inventory');
       setShowAddInventoryModal(false);
       setEditingId(null);
       setInvItemName('');
@@ -2013,6 +2051,181 @@ export default function App() {
     };
   }, [isLocked, selectedLockRole, lockPinInput]);
 
+  // Lock screen early return — prevents data queries and sync when locked
+  if (isLocked) {
+    return (
+      <div className="min-h-screen flex bg-slate-50 font-sans dark-theme" dir="rtl">
+        <div className="w-full max-w-4xl flex flex-col items-center py-8 my-auto mx-auto">
+          
+          {/* هيدر بوابة الأمن */}
+          <div className="text-center mb-8 max-w-md">
+            <div 
+              className="w-32 h-32 md:w-36 md:h-36 rounded-full flex items-center justify-center shadow-2xl mx-auto mb-6 overflow-hidden border-4 border-amber-400/60 bg-slate-900 p-1.5 shadow-[0_0_30px_rgba(245,158,11,0.25)]"
+            >
+              <img src={appLogo} alt="Mushroom System" className="w-full h-full rounded-full object-cover" referrerPolicy="no-referrer" />
+            </div>
+            <h1 className="text-3xl font-extrabold text-white tracking-tight">Mushroom System</h1>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+              بوابة الإدارة والمتابعة لمزرعة الفطر المتكاملة الموحدة.
+            </p>
+          </div>
+
+          {!selectedLockRole ? (
+            /* واجهة اختيار الدور */
+            <div className="w-full max-w-3xl space-y-6">
+              <h2 className="text-xs font-bold text-emerald-500 uppercase tracking-widest text-center">الرجاء تحديد صفة المستخدم لفتح النظام</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                {/* بطاقة الإدارة العامة */}
+                <button
+                  onClick={() => {
+                    setSelectedLockRole('Admin');
+                    setLockPinInput('');
+                    setLockPinError('');
+                  }}
+                  className="flex flex-col items-center p-6 bg-slate-900/50 border border-slate-800 hover:border-emerald-500/50 rounded-2xl text-center group transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900/80 shadow-xl"
+                >
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-inner">
+                    <span className="text-2xl">👑</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-white">الإدارة العامة</h3>
+                  <p className="text-[11px] text-slate-400 mt-1 leading-tight">الإدارة الشاملة للشركاء ومتابعة التقارير المالية والقرارات السيادية</p>
+                  <span className="text-[9px] text-amber-400 font-bold mt-4 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/10">صلاحيات كاملة + المالية</span>
+                </button>
+
+                {/* بطاقة المشرف المناوب */}
+                <button
+                  onClick={() => {
+                    setSelectedLockRole('Supervisor');
+                    setLockPinInput('');
+                    setLockPinError('');
+                  }}
+                  className="flex flex-col items-center p-6 bg-slate-900/50 border border-slate-800 hover:border-emerald-500/50 rounded-2xl text-center group transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900/80 shadow-xl"
+                >
+                  <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-inner">
+                    <span className="text-2xl">👔</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-white">المشرف المناوب</h3>
+                  <p className="text-[11px] text-slate-400 mt-1 leading-tight">إدارة العمليات والإنتاج والمخزن</p>
+                  <span className="text-[9px] text-blue-400 font-bold mt-4 bg-blue-500/10 px-2 py-1 rounded border border-blue-500/10">صلاحيات إشرافية</span>
+                </button>
+
+                {/* بطاقة المشغل الفني */}
+                <button
+                  onClick={() => {
+                    setSelectedLockRole('Operator');
+                    setLockPinInput('');
+                    setLockPinError('');
+                  }}
+                  className="flex flex-col items-center p-6 bg-slate-900/50 border border-slate-800 hover:border-emerald-500/50 rounded-2xl text-center group transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900/80 shadow-xl"
+                >
+                  <div className="w-14 h-14 rounded-2xl bg-slate-800 text-slate-300 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-inner">
+                    <span className="text-2xl">🚜</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-white">المشغل الفني</h3>
+                  <p className="text-[11px] text-slate-400 mt-1 leading-tight">تسجيل القراءات والإنتاج اليومي</p>
+                  <span className="text-[9px] text-slate-400 font-bold mt-4 bg-slate-800 px-2 py-1 rounded border border-slate-700">قراءة وتسجيل فقط</span>
+                </button>
+
+              </div>
+
+              <div className="text-center pt-8 border-t border-slate-900">
+                <p className="text-[10px] text-slate-500 font-medium">
+                  ملاحظة للمراجعين والتجربة السريعة: الإدارة العامة (7391 أو 2846) | المشرف (9514) | المشغل (8263)
+                </p>
+              </div>
+            </div>
+          ) : (
+            /* واجهة إدخال الرمز PIN بنظام Numpad ذكي */
+            <div className="w-full max-w-sm bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-2xl relative animate-scale-in">
+              
+              <div className="text-center mb-6">
+                <span className="text-xs font-bold text-emerald-500 tracking-wider block mb-1">تأكيد الهوية</span>
+                <h3 className="text-base font-bold text-white">
+                  {selectedLockRole === 'Admin' ? '👑 الإدارة العامة' : selectedLockRole === 'Supervisor' ? '👔 المشرف المناوب' : '🚜 المشغل الفني'}
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-1">الرجاء إدخال الرمز السري المكون من 4 أرقام لفتح اللوحة</p>
+              </div>
+
+              {/* دوائر عرض الرمز المكتوب */}
+              <div className="flex justify-center gap-4 mb-6">
+                {[0, 1, 2, 3].map((index) => (
+                  <div
+                    key={index}
+                    className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-150 ${
+                      index < lockPinInput.length
+                        ? 'bg-emerald-500 border-emerald-500 scale-110 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+                        : 'border-slate-700 bg-transparent'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* رسالة الخطأ */}
+              <div className="h-6 flex items-center justify-center mb-4">
+                {lockPinError && (
+                  <p className="text-xs text-rose-500 font-bold text-center animate-pulse">{lockPinError}</p>
+                )}
+              </div>
+
+              {/* لوحة المفاتيح الرقمية Numpad */}
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => handleLockPinPress(num)}
+                    className="h-14 bg-slate-800/80 hover:bg-slate-700 active:bg-slate-650 text-white font-bold text-lg rounded-xl flex items-center justify-center transition-all duration-100 shadow border border-slate-700/30"
+                  >
+                    {num}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={handleLockPinClear}
+                  className="h-14 bg-slate-950 hover:bg-slate-900 active:bg-slate-850 text-rose-400 font-bold text-xs rounded-xl flex items-center justify-center transition-colors border border-rose-950/20"
+                >
+                  مسح الكل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLockPinPress('0')}
+                  className="h-14 bg-slate-800/80 hover:bg-slate-700 active:bg-slate-650 text-white font-bold text-lg rounded-xl flex items-center justify-center transition-all duration-100 shadow border border-slate-700/30"
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLockPinDelete}
+                  className="h-14 bg-slate-800/80 hover:bg-slate-750 active:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl flex items-center justify-center transition-all duration-100"
+                >
+                  حذف
+                </button>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedLockRole(null);
+                    setLockPinInput('');
+                    setLockPinError('');
+                  }}
+                  className="flex-1 py-3 bg-slate-950 hover:bg-slate-900 active:bg-slate-850 text-slate-300 hover:text-white font-bold rounded-xl text-xs transition-colors border border-slate-800"
+                >
+                  تغيير صفة الدخول (رجوع)
+                </button>
+              </div>
+
+            </div>
+          )}
+
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen flex bg-slate-50 font-sans ${isDarkMode ? 'dark-theme' : 'light-theme'}`} dir="rtl">
       
@@ -2023,7 +2236,12 @@ export default function App() {
         {/* هيدر القائمة الجانبية */}
         <div className="p-6 flex items-center gap-3 border-b border-slate-800">
           <button 
-            className="w-11 h-11 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-950/40 overflow-hidden border border-emerald-500/30 bg-slate-800/60 p-0.5"
+            className="w-11 h-11 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-950/40 overflow-hidden border border-emerald-500/30 bg-slate-800/60 p-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => {
+              setActiveTab('الرئيسية');
+              localStorage.setItem('mushroom_active_tab', 'الرئيسية');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           >
             <img src={appLogo} alt="Mushroom System" className="w-full h-full object-cover rounded-lg" referrerPolicy="no-referrer" />
           </button>
@@ -2120,7 +2338,13 @@ export default function App() {
           <div className="p-5 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button 
-                className="w-9 h-9 rounded-lg flex items-center justify-center shadow-md overflow-hidden bg-slate-800/80 p-0.5 border border-emerald-500/20"
+                className="w-9 h-9 rounded-lg flex items-center justify-center shadow-md overflow-hidden bg-slate-800/80 p-0.5 border border-emerald-500/20 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => {
+                  setActiveTab('الرئيسية');
+                  localStorage.setItem('mushroom_active_tab', 'الرئيسية');
+                  setMobileMenuOpen(false);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
               >
                 <img src={appLogo} alt="Mushroom System" className="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
               </button>
@@ -4754,185 +4978,6 @@ export default function App() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* ==========================================
-          هـ. شاشة القفل المحلية الكاملة (Offline Security Lock Screen Layer)
-          ========================================== */}
-      {isLocked && (
-        <div 
-          className="lock-screen-overlay fixed inset-0 z-[100] flex flex-col items-center justify-start md:justify-center bg-slate-950/95 backdrop-blur-md p-4 overflow-y-auto select-none" 
-          style={{ minHeight: '100vh' }}
-          dir="rtl"
-        >
-          <div className="w-full max-w-4xl flex flex-col items-center py-8 my-auto">
-            
-            {/* هيدر بوابة الأمن */}
-            <div className="text-center mb-8 max-w-md">
-              <div 
-                className="w-32 h-32 md:w-36 md:h-36 rounded-full flex items-center justify-center shadow-2xl mx-auto mb-6 overflow-hidden border-4 border-amber-400/60 bg-slate-900 p-1.5 shadow-[0_0_30px_rgba(245,158,11,0.25)]"
-              >
-                <img src={appLogo} alt="Mushroom System" className="w-full h-full rounded-full object-cover" referrerPolicy="no-referrer" />
-              </div>
-              <h1 className="text-3xl font-extrabold text-white tracking-tight">Mushroom System</h1>
-              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                بوابة الإدارة والمتابعة لمزرعة الفطر المتكاملة الموحدة.
-              </p>
-            </div>
-
-            {!selectedLockRole ? (
-              /* واجهة اختيار الدور */
-              <div className="w-full max-w-3xl space-y-6">
-                <h2 className="text-xs font-bold text-emerald-500 uppercase tracking-widest text-center">الرجاء تحديد صفة المستخدم لفتح النظام</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  
-                  {/* بطاقة الإدارة العامة */}
-                  <button
-                    onClick={() => {
-                      setSelectedLockRole('Admin');
-                      setLockPinInput('');
-                      setLockPinError('');
-                    }}
-                    className="flex flex-col items-center p-6 bg-slate-900/50 border border-slate-800 hover:border-emerald-500/50 rounded-2xl text-center group transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900/80 shadow-xl"
-                  >
-                    <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-inner">
-                      <span className="text-2xl">👑</span>
-                    </div>
-                    <h3 className="text-sm font-bold text-white">الإدارة العامة</h3>
-                    <p className="text-[11px] text-slate-400 mt-1 leading-tight">الإدارة الشاملة للشركاء ومتابعة التقارير المالية والقرارات السيادية</p>
-                    <span className="text-[9px] text-amber-400 font-bold mt-4 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/10">صلاحيات كاملة + المالية</span>
-                  </button>
-
-                  {/* بطاقة المشرف المناوب */}
-                  <button
-                    onClick={() => {
-                      setSelectedLockRole('Supervisor');
-                      setLockPinInput('');
-                      setLockPinError('');
-                    }}
-                    className="flex flex-col items-center p-6 bg-slate-900/50 border border-slate-800 hover:border-emerald-500/50 rounded-2xl text-center group transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900/80 shadow-xl"
-                  >
-                    <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-inner">
-                      <span className="text-2xl">👔</span>
-                    </div>
-                    <h3 className="text-sm font-bold text-white">المشرف المناوب</h3>
-                    <p className="text-[11px] text-slate-400 mt-1 leading-tight">إدارة العمليات والإنتاج والمخزن</p>
-                    <span className="text-[9px] text-blue-400 font-bold mt-4 bg-blue-500/10 px-2 py-1 rounded border border-blue-500/10">صلاحيات إشرافية</span>
-                  </button>
-
-                  {/* بطاقة المشغل الفني */}
-                  <button
-                    onClick={() => {
-                      setSelectedLockRole('Operator');
-                      setLockPinInput('');
-                      setLockPinError('');
-                    }}
-                    className="flex flex-col items-center p-6 bg-slate-900/50 border border-slate-800 hover:border-emerald-500/50 rounded-2xl text-center group transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900/80 shadow-xl"
-                  >
-                    <div className="w-14 h-14 rounded-2xl bg-slate-800 text-slate-300 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-inner">
-                      <span className="text-2xl">🚜</span>
-                    </div>
-                    <h3 className="text-sm font-bold text-white">المشغل الفني</h3>
-                    <p className="text-[11px] text-slate-400 mt-1 leading-tight">تسجيل القراءات والإنتاج اليومي</p>
-                    <span className="text-[9px] text-slate-400 font-bold mt-4 bg-slate-800 px-2 py-1 rounded border border-slate-700">قراءة وتسجيل فقط</span>
-                  </button>
-
-                </div>
-
-                <div className="text-center pt-8 border-t border-slate-900">
-                  <p className="text-[10px] text-slate-500 font-medium">
-                    ملاحظة للمراجعين والتجربة السريعة: الإدارة العامة (7391 أو 2846) | المشرف (9514) | المشغل (8263)
-                  </p>
-                </div>
-              </div>
-            ) : (
-              /* واجهة إدخال الرمز PIN بنظام Numpad ذكي */
-              <div className="w-full max-w-sm bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-2xl relative animate-scale-in">
-                
-                <div className="text-center mb-6">
-                  <span className="text-xs font-bold text-emerald-500 tracking-wider block mb-1">تأكيد الهوية</span>
-                  <h3 className="text-base font-bold text-white">
-                    {selectedLockRole === 'Admin' ? '👑 الإدارة العامة' : selectedLockRole === 'Supervisor' ? '👔 المشرف المناوب' : '🚜 المشغل الفني'}
-                  </h3>
-                  <p className="text-[11px] text-slate-400 mt-1">الرجاء إدخال الرمز السري المكون من 4 أرقام لفتح اللوحة</p>
-                </div>
-
-                {/* دوائر عرض الرمز المكتوب */}
-                <div className="flex justify-center gap-4 mb-6">
-                  {[0, 1, 2, 3].map((index) => (
-                    <div
-                      key={index}
-                      className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-150 ${
-                        index < lockPinInput.length
-                          ? 'bg-emerald-500 border-emerald-500 scale-110 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
-                          : 'border-slate-700 bg-transparent'
-                      }`}
-                    />
-                  ))}
-                </div>
-
-                {/* رسالة الخطأ */}
-                <div className="h-6 flex items-center justify-center mb-4">
-                  {lockPinError && (
-                    <p className="text-xs text-rose-500 font-bold text-center animate-pulse">{lockPinError}</p>
-                  )}
-                </div>
-
-                {/* لوحة المفاتيح الرقمية Numpad */}
-                <div className="grid grid-cols-3 gap-3 mb-6">
-                  {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      onClick={() => handleLockPinPress(num)}
-                      className="h-14 bg-slate-800/80 hover:bg-slate-700 active:bg-slate-650 text-white font-bold text-lg rounded-xl flex items-center justify-center transition-all duration-100 shadow border border-slate-700/30"
-                    >
-                      {num}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={handleLockPinClear}
-                    className="h-14 bg-slate-950 hover:bg-slate-900 active:bg-slate-850 text-rose-400 font-bold text-xs rounded-xl flex items-center justify-center transition-colors border border-rose-950/20"
-                  >
-                    مسح الكل
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleLockPinPress('0')}
-                    className="h-14 bg-slate-800/80 hover:bg-slate-700 active:bg-slate-650 text-white font-bold text-lg rounded-xl flex items-center justify-center transition-all duration-100 shadow border border-slate-700/30"
-                  >
-                    0
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleLockPinDelete}
-                    className="h-14 bg-slate-800/80 hover:bg-slate-750 active:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl flex items-center justify-center transition-all duration-100"
-                  >
-                    حذف
-                  </button>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedLockRole(null);
-                      setLockPinInput('');
-                      setLockPinError('');
-                    }}
-                    className="flex-1 py-3 bg-slate-950 hover:bg-slate-900 active:bg-slate-850 text-slate-300 hover:text-white font-bold rounded-xl text-xs transition-colors border border-slate-800"
-                  >
-                    تغيير صفة الدخول (رجوع)
-                  </button>
-                </div>
-
-              </div>
-            )}
-
           </div>
         </div>
       )}
