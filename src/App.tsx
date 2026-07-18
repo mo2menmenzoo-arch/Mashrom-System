@@ -670,18 +670,22 @@ export default function App() {
 
   // Subscribe to cloud real-time updates — polls the shared store so data created
   // on one phone appears on every other phone.
+  const lastSnapshotRef = useRef<Record<string, string>>({});
   useEffect(() => {
     if (!isCloudConfigured() || !dbSeeded) return;
 
     const unsub = subscribeToAll((collectionName, docs) => {
       const items = Object.values(docs);
       // ponytail: upsert only (bulkPut) — do NOT clear(), clearing every 4s wiped the
-      // UI and caused the flicker/hang on the dashboard. Deletes propagate via the
-      // cloud store being the source of truth on next full refresh.
+      // UI and caused the flicker/hang on the dashboard.
       if (items.length > 0) {
         activeDb.table(collectionName).bulkPut(items as any);
       }
-      // Update React state
+      // Only push to React state when the data actually changed — prevents the
+      // every-4s re-render flicker on the dashboard.
+      const serialized = JSON.stringify(items);
+      if (lastSnapshotRef.current[collectionName] === serialized) return;
+      lastSnapshotRef.current[collectionName] = serialized;
       const setter = fsSetters[collectionName];
       if (setter) {
         (setter as any)(items);
@@ -1185,18 +1189,25 @@ export default function App() {
 
     setLockPinError('');
 
-    // ponytail: compute the next value OUTSIDE the updater (never call async/setState
-    // inside a state updater — StrictMode double-invokes it and the verify call hangs).
-    let nextValue = lockPinInput;
-    if (nextValue.length >= 4) nextValue = '';
-    if (nextValue.length < 4) {
-      nextValue = nextValue + digit;
-    }
-    setLockPinInput(nextValue);
+    // ponytail: use functional update so rapid physical-keyboard presses always read the
+    // latest value (reading the stale `lockPinInput` closure dropped keystrokes / froze).
+    // Capture the computed value in a ref-like local so we can verify AFTER the update,
+    // never inside the updater (StrictMode double-invokes updaters → verify hangs).
+    let computed = '';
+    setLockPinInput(prev => {
+      let currentInput = prev;
+      if (prev.length >= 4) currentInput = '';
+      if (currentInput.length < 4) {
+        computed = currentInput + digit;
+        return computed;
+      }
+      computed = prev;
+      return prev;
+    });
 
     // Auto-verify once 4 digits are complete — runs after render, not inside the updater.
-    if (nextValue.length === 4 && selectedLockRole) {
-      verifyLockPin(nextValue, selectedLockRole);
+    if (computed.length === 4 && selectedLockRole) {
+      verifyLockPin(computed, selectedLockRole);
     }
   };
 
