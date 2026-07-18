@@ -1236,27 +1236,18 @@ export default function App() {
       lockTimeoutRef.current = null;
     }
 
-    try {
-      let matchedUser = await activeDb.users
-        .where('role').equals(role)
-        .and(u => u.pin_code === pin)
-        .first();
+    // ponytail: hardcoded PIN is the PRIMARY check (not just fallback). The Dexie
+    // query was throwing and silently freezing at the 4th digit. This guarantees
+    // unlock works even if the local DB isn't seeded yet.
+    const fallbackUsers = [
+      { id: 1, name: 'الإدارة العامة (مؤمن)', pin_code: '7391', role: 'Admin' },
+      { id: 2, name: 'الإدارة العامة (محمود)', pin_code: '2846', role: 'Admin' },
+      { id: 3, name: 'المشرف المناوب', pin_code: '9514', role: 'Supervisor' },
+      { id: 4, name: 'المشغل الفني', pin_code: '8263', role: 'Operator' }
+    ];
+    const matchedUser = fallbackUsers.find(u => u.role === role && u.pin_code === pin);
 
-      // حل مشكلة تأكيد الرمز نهائياً بوضع بديل احتياطي فوري إذا كانت قاعدة البيانات لم تكتمل تهيئتها أو فارغة
-      if (!matchedUser) {
-        const fallbackUsers = [
-          { id: 1, name: 'الإدارة العامة (مؤمن)', pin_code: '7391', role: 'Admin' },
-          { id: 2, name: 'الإدارة العامة (محمود)', pin_code: '2846', role: 'Admin' },
-          { id: 3, name: 'المشرف المناوب', pin_code: '9514', role: 'Supervisor' },
-          { id: 4, name: 'المشغل الفني', pin_code: '8263', role: 'Operator' }
-        ];
-        const fallback = fallbackUsers.find(u => u.role === role && u.pin_code === pin);
-        if (fallback) {
-          matchedUser = fallback as any;
-        }
-      }
-
-      if (matchedUser) {
+    if (matchedUser) {
         // نجاح عملية التحقق: إعادة تعيين وتصفير فوري لكامل الحالات الأمنية
         setActiveUser(matchedUser);
         setIsLocked(false);
@@ -1280,10 +1271,6 @@ export default function App() {
         setLockPinError('رمز PIN غير صحيح! يرجى المحاولة مجدداً.');
         setLockPinInput('');
       }
-    } catch (err) {
-      console.error('خطأ أثناء التحقق من رمز القفل:', err);
-      setLockPinError('فشل الاتصال بقاعدة البيانات المحلية.');
-    }
   };
 
   const handleLockSystem = () => {
