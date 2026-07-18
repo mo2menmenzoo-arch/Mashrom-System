@@ -8,7 +8,7 @@
 //
 // ponytail: GitHub token is server-side only (VERCEL env), never shipped to client.
 
-const https = require('https');
+import https from 'https';
 
 const REPO_OWNER = 'mo2menmenzoo-arch';
 const REPO_NAME = 'Mashrom-System';
@@ -117,7 +117,7 @@ function deleteRow(dataset, table, id) {
   delete dataset[table][String(id)];
 }
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
     res.status(500).json({ error: 'GITHUB_TOKEN not configured' });
