@@ -133,9 +133,9 @@ export default function App() {
   const [pinError, setPinError] = useState('');
 
   // حالات شاشة القفل المحلية الآمنة (Offline Lock Screen)
-  // ponytail: start UNLOCKED so the dashboard opens instantly. Lock is opt-in via the
-  // "قفل النظام" button. The forced-lock-on-load was the "شاشة كحلي" the user was stuck on.
-  const [isLocked, setIsLocked] = useState(false);
+  // ponytail: start LOCKED — the lock gate is the intended first screen. Lock is opt-in
+  // via the "قفل النظام" button after unlocking.
+  const [isLocked, setIsLocked] = useState(true);
   const [lockPinInput, setLockPinInput] = useState('');
   const [lockPinError, setLockPinError] = useState('');
   const [selectedLockRole, setSelectedLockRole] = useState<'Admin' | 'Supervisor' | 'Operator' | null>(null);
@@ -1179,22 +1179,21 @@ export default function App() {
     }
     
     setLockPinError('');
-    
-    // إذا كان الرمز السابق غير صحيح وجاري عرضه، قم بتصفيره والبدء من جديد
-    let currentInput = lockPinInput;
-    if (lockPinInput.length >= 4) {
-      currentInput = '';
-    }
 
-    if (currentInput.length < 4) {
-      const newInput = currentInput + digit;
-      setLockPinInput(newInput);
-      
-      // تحقق تلقائي فوري عند اكتمال 4 أرقام
-      if (newInput.length === 4) {
-        verifyLockPin(newInput, selectedLockRole!);
+    // ponytail: use functional update so rapid physical-keyboard presses always read the
+    // latest value. Reading the stale `lockPinInput` closure dropped keystrokes.
+    setLockPinInput(prev => {
+      let currentInput = prev;
+      if (prev.length >= 4) currentInput = '';
+      if (currentInput.length < 4) {
+        const newInput = currentInput + digit;
+        if (newInput.length === 4 && selectedLockRole) {
+          verifyLockPin(newInput, selectedLockRole);
+        }
+        return newInput;
       }
-    }
+      return prev;
+    });
   };
 
   const handleLockPinDelete = () => {
@@ -2122,17 +2121,21 @@ export default function App() {
 
   // مستمع للوحة المفاتيح الفعلية لتسهيل الإدخال من الأجهزة المكتبية والمحمول
   useEffect(() => {
-    if (!isLocked || !selectedLockRole) return;
+    if (!isLocked) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
         handleLockPinPress(e.key);
       } else if (e.key === 'Backspace') {
+        e.preventDefault();
         handleLockPinDelete();
       } else if (e.key === 'Escape') {
-        setSelectedLockRole(null);
-        setLockPinInput('');
-        setLockPinError('');
+        if (selectedLockRole) {
+          setSelectedLockRole(null);
+          setLockPinInput('');
+          setLockPinError('');
+        }
       }
     };
 
@@ -2140,7 +2143,7 @@ export default function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isLocked, selectedLockRole, lockPinInput]);
+  }, [isLocked]);
 
   // Lock screen early return — prevents data queries and sync when locked
   if (isLocked) {
