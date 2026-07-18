@@ -3,11 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 const appLogo = '/logo.png';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { prodDb, demoDb, seedInitialData, injectDemoData, clearDemoData, runAtomicTransaction, exportEncryptedBackup, importEncryptedBackup, decryptValue, encryptValue, registerSyncHandlers, syncTableToCloud, syncFromCloud, type User } from './db';
-import { pushTable, pullAll, isSyncConfigured } from './firebase-sync';
+import { prodDb, demoDb, seedInitialData, injectDemoData, clearDemoData, runAtomicTransaction, exportEncryptedBackup, importEncryptedBackup, registerSyncHandlers, syncDocToFirestore, deleteDocFromFirestore, type User } from './db';
+import { writeDoc as firestoreWriteDoc, deleteDocById as firestoreDeleteDoc, subscribeToAll, isCollectionEmpty, bulkWriteCollection } from './firestore-service';
+import { isFirebaseConfigured } from './firebase-config';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -132,16 +133,19 @@ export default function App() {
   const [pinError, setPinError] = useState('');
 
   // حالات شاشة القفل المحلية الآمنة (Offline Lock Screen)
-  const [isLocked, setIsLocked] = useState(() => {
-    const saved = localStorage.getItem('mushroom_is_locked');
-    return saved !== null ? saved === 'true' : true;
-  });
+  // ponytail: always start locked. localStorage persistence was allowing bypass on restart.
+  const [isLocked, setIsLocked] = useState(true);
   const [lockPinInput, setLockPinInput] = useState('');
   const [lockPinError, setLockPinError] = useState('');
   const [selectedLockRole, setSelectedLockRole] = useState<'Admin' | 'Supervisor' | 'Operator' | null>(null);
 
   // مرجع لمؤقت شاشة القفل لمنع التجمد أو التكرار
   const lockTimeoutRef = useRef<any>(null);
+
+  // تنظيف أي قيم قديمة من localStorage عند بدء التشغيل
+  useEffect(() => {
+    localStorage.removeItem('mushroom_is_locked');
+  }, []);
 
   // حالات مودالات الصوبات والأصول والشركاء التفاعلية
   const [showAddGreenhouseModal, setShowAddGreenhouseModal] = useState(false);
@@ -346,7 +350,11 @@ export default function App() {
 
       // إعادة عرض كامل وحي للبيانات التفاعلية
       triggerStateRefresh();
-      syncAfterWrite(internalTable);
+      deleteDocFromFirestore(internalTable, deleteTargetId);
+      syncAfterWrite('petty_cash', { id: 1, current_balance: finalBalance, last_updated: new Date().toISOString() }, 1);
+      for (const tx of remainingTxs) {
+        if (tx.id) syncDocToFirestore('transactions', tx.id, tx);
+      }
 
     } catch (error: any) {
       console.error("Critical Delete Error:", error);
@@ -372,11 +380,14 @@ export default function App() {
     };
 
     try {
+      const targetDb = demoMode ? demoDb : prodDb;
+      let recordId: number;
       if (editingAsset && editingAsset.id) {
-        await targetDb.assets.update(editingAsset.id, data);
+        recordId = editingAsset.id;
+        await targetDb.assets.update(recordId, data);
         setAlertModalMessage("✅ تم تعديل بيانات الأصل بنجاح!");
       } else {
-        await targetDb.assets.add(data);
+        recordId = await targetDb.assets.add(data);
         setAlertModalMessage("✅ تم تسجيل الأصل الثابت الجديد بنجاح!");
       }
 
@@ -388,7 +399,7 @@ export default function App() {
       setShowAddAssetModal(false);
       setShowAlertModal(true);
       triggerStateRefresh();
-      syncAfterWrite('assets');
+      syncAfterWrite('assets', { ...data, id: recordId }, recordId);
     } catch (err: any) {
       console.error("Asset Save Error:", err);
       alert("❌ فشل حفظ الأصل: " + err.message);
@@ -411,11 +422,14 @@ export default function App() {
     };
 
     try {
+      const targetDb = demoMode ? demoDb : prodDb;
+      let recordId: number;
       if (editingPartner && editingPartner.id) {
-        await targetDb.partners.update(editingPartner.id, data);
+        recordId = editingPartner.id;
+        await targetDb.partners.update(recordId, data);
         setAlertModalMessage("✅ تم تعديل بيانات الشريك بنجاح!");
       } else {
-        await targetDb.partners.add(data);
+        recordId = await targetDb.partners.add(data);
         setAlertModalMessage("✅ تم إضافة الشريك المساهم الجديد بنجاح!");
       }
 
@@ -426,7 +440,7 @@ export default function App() {
       setShowAddPartnerModal(false);
       setShowAlertModal(true);
       triggerStateRefresh();
-      syncAfterWrite('partners');
+      syncAfterWrite('partners', { ...data, id: recordId }, recordId);
     } catch (err: any) {
       console.error("Partner Save Error:", err);
       alert("❌ فشل حفظ الشريك: " + err.message);
@@ -437,13 +451,10 @@ export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const triggerStateRefresh = () => setRefreshTrigger(prev => prev + 1);
 
-  const syncAfterWrite = async (tableName: string) => {
-    if (!isSyncConfigured() || demoMode) return;
-    try {
-      const data = await activeDb.table(tableName).toArray();
-      await pushTable(tableName as any, data);
-    } catch (e) {
-      console.warn(`[sync] push after write to "${tableName}" failed:`, e);
+  const syncAfterWrite = async (tableName: string, data?: any, recordId?: string | number) => {
+    if (demoMode || !isFirebaseConfigured()) return;
+    if (data && recordId !== undefined) {
+      await syncDocToFirestore(tableName, recordId, data);
     }
   };
 
@@ -578,9 +589,38 @@ export default function App() {
   };
 
   // ==========================================
-  // 2. ربط قاعدة البيانات الحية (Live Querying)
+  // 2. Firestore Real-Time Subscriptions + Dexie Offline Cache
   // ==========================================
-  // استدعاء البذر والتهيئة للتشغيل النظيف وقراءة حالة التجربة
+
+  // State mirrors for Firestore data (replaces useLiveQuery for production mode)
+  const [fsGreenhouses, setFsGreenhouses] = useState<any[]>([]);
+  const [fsCycles, setFsCycles] = useState<any[]>([]);
+  const [fsInventory, setFsInventory] = useState<any[]>([]);
+  const [fsEmployees, setFsEmployees] = useState<any[]>([]);
+  const [fsExpenses, setFsExpenses] = useState<any[]>([]);
+  const [fsOperationalLogs, setFsOperationalLogs] = useState<any[]>([]);
+  const [fsPartners, setFsPartners] = useState<any[]>([]);
+  const [fsAssets, setFsAssets] = useState<any[]>([]);
+  const [fsProduction, setFsProduction] = useState<any[]>([]);
+  const [fsTransactions, setFsTransactions] = useState<any[]>([]);
+  const [fsPettyCash, setFsPettyCash] = useState<any>(null);
+
+  // Firestore state setters keyed by collection name
+  const fsSetters: Record<string, React.Dispatch<React.SetStateAction<any[]>> | React.Dispatch<React.SetStateAction<any>> | null> = {
+    greenhouses: setFsGreenhouses,
+    cycles: setFsCycles,
+    inventory: setFsInventory,
+    employees: setFsEmployees,
+    expenses: setFsExpenses,
+    operational_logs: setFsOperationalLogs,
+    partners: setFsPartners,
+    assets: setFsAssets,
+    production: setFsProduction,
+    transactions: setFsTransactions,
+    petty_cash: setFsPettyCash,
+    users: null, // users handled separately via Dexie for PIN lookup
+  };
+
   useEffect(() => {
     async function initDB() {
       try {
@@ -593,12 +633,24 @@ export default function App() {
             await injectDemoData(demoDb);
           }
         }
-        // Register cloud sync handlers and pull on startup
-        registerSyncHandlers(pushTable, pullAll);
-        const syncMode = localStorage.getItem('mushroom_demo_mode') !== 'true';
-        if (syncMode && isSyncConfigured()) {
-          await syncFromCloud(prodDb);
+
+        // Register Firestore write handlers
+        registerSyncHandlers(firestoreWriteDoc, firestoreDeleteDoc);
+
+        // One-time migration: if Firestore is empty but local Dexie has data, push to Firestore
+        if (!demoMode && isFirebaseConfigured()) {
+          const tables = ['users','partners','greenhouses','cycles','inventory','petty_cash','transactions','expenses','operational_logs','employees','assets','production'];
+          for (const table of tables) {
+            const empty = await isCollectionEmpty(table as any);
+            if (empty) {
+              const localData = await prodDb.table(table).toArray();
+              if (localData.length > 0) {
+                await bulkWriteCollection(table as any, localData);
+              }
+            }
+          }
         }
+
         setDbSeeded(true);
       } catch (err) {
         console.error('فشل في بذر قاعدة البيانات:', err);
@@ -607,25 +659,31 @@ export default function App() {
     initDB();
   }, []);
 
-  // Periodic pull from cloud when visible + every 30s
+  // Subscribe to Firestore real-time updates (only in prod mode)
   useEffect(() => {
-    if (!isSyncConfigured() || demoMode) return;
-    const pullOnFocus = async () => {
-      try {
-        await syncFromCloud(prodDb);
-        triggerStateRefresh();
-      } catch (e) { console.warn('[sync] pull failed:', e); }
-    };
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') pullOnFocus();
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    const interval = setInterval(pullOnFocus, 30000);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibility);
-      clearInterval(interval);
-    };
+    if (demoMode || !isFirebaseConfigured()) return;
+
+    const unsub = subscribeToAll((collectionName, docs) => {
+      const items = Object.values(docs);
+      // Write through to Dexie cache
+      if (!demoMode) {
+        const dbTable = prodDb.table(collectionName);
+        dbTable.clear().then(() => {
+          if (items.length > 0) dbTable.bulkPut(items as any);
+        });
+      }
+      // Update React state
+      const setter = fsSetters[collectionName];
+      if (setter) {
+        (setter as any)(items);
+      }
+    });
+
+    return unsub;
   }, [demoMode]);
+
+  // ponytail: Firestore onSnapshot handles real-time updates — no periodic pull needed
+  useEffect(() => {}, [demoMode]);
 
   // تسجيل دوال الحذف والتعديل الموحدة بالنافذة العالمية لتفادي فقدان مستمعي الأحداث وإعادة العرض
   useEffect(() => {
@@ -760,17 +818,15 @@ export default function App() {
       }
       
       const targetDb = demoMode ? demoDb : prodDb;
-      await targetDb.greenhouses.add({
-        name,
-        capacity,
-        status: 'Active'
-      });
+      const ghData = { name, capacity, status: 'Active' as const };
+      const recordId = await targetDb.greenhouses.add(ghData);
       
       if (nameInput) nameInput.value = '';
       if (capacityInput) capacityInput.value = '';
       
       setShowAddGreenhouseModal(false);
       triggerStateRefresh();
+      syncAfterWrite('greenhouses', { ...ghData, id: recordId }, recordId);
     };
 
     (window as any).addAsset = async (event: any) => {
@@ -793,13 +849,8 @@ export default function App() {
       }
       
       const targetDb = demoMode ? demoDb : prodDb;
-      await targetDb.assets.add({
-        name,
-        purchase_cost: cost,
-        purchase_date,
-        useful_life: life,
-        accumulated_depreciation: 0
-      });
+      const assetData = { name, purchase_cost: cost, purchase_date, useful_life: life, accumulated_depreciation: 0 };
+      const recordId = await targetDb.assets.add(assetData);
       
       if (nameInput) nameInput.value = '';
       if (costInput) costInput.value = '';
@@ -808,6 +859,7 @@ export default function App() {
       
       setShowAddAssetModal(false);
       triggerStateRefresh();
+      syncAfterWrite('assets', { ...assetData, id: recordId }, recordId);
     };
 
     (window as any).addPartner = async (event: any) => {
@@ -828,13 +880,8 @@ export default function App() {
       }
       
       const targetDb = demoMode ? demoDb : prodDb;
-      await targetDb.partners.add({
-        name,
-        contribution_value,
-        profit_percentage,
-        share_percentage: profit_percentage,
-        total_payouts: 0
-      });
+      const partnerData = { name, contribution_value, profit_percentage, share_percentage: profit_percentage, total_payouts: 0 };
+      const recordId = await targetDb.partners.add(partnerData);
       
       if (nameInput) nameInput.value = '';
       if (contributionInput) contributionInput.value = '';
@@ -842,6 +889,7 @@ export default function App() {
       
       setShowAddPartnerModal(false);
       triggerStateRefresh();
+      syncAfterWrite('partners', { ...partnerData, id: recordId }, recordId);
     };
 
     (window as any).deleteRecord = async (...args: any[]) => {
@@ -935,23 +983,24 @@ export default function App() {
   const activeDb = demoMode ? demoDb : prodDb;
 
   // جلب إحصائيات سريعة حقيقية من قاعدة البيانات النشطة لإثبات الترابط
-  const totalGreenhouses = useLiveQuery(() => activeDb.greenhouses.count(), [demoMode, refreshTrigger]) ?? 0;
-  const totalCycles = useLiveQuery(() => activeDb.cycles.count(), [demoMode, refreshTrigger]) ?? 0;
-  const totalEmployees = useLiveQuery(() => activeDb.employees.count(), [demoMode, refreshTrigger]) ?? 0;
-  const totalInventory = useLiveQuery(() => activeDb.inventory.count(), [demoMode, refreshTrigger]) ?? 0;
-  const pettyCashRecord = useLiveQuery(() => activeDb.petty_cash.get(1), [demoMode, refreshTrigger]);
+  // In prod mode: use Firestore state. In demo mode: use Dexie useLiveQuery.
+  const totalGreenhouses = demoMode ? (useLiveQuery(() => activeDb.greenhouses.count(), [demoMode, refreshTrigger]) ?? 0) : fsGreenhouses.length;
+  const totalCycles = demoMode ? (useLiveQuery(() => activeDb.cycles.count(), [demoMode, refreshTrigger]) ?? 0) : fsCycles.length;
+  const totalEmployees = demoMode ? (useLiveQuery(() => activeDb.employees.count(), [demoMode, refreshTrigger]) ?? 0) : fsEmployees.length;
+  const totalInventory = demoMode ? (useLiveQuery(() => activeDb.inventory.count(), [demoMode, refreshTrigger]) ?? 0) : fsInventory.length;
+  const pettyCashRecord = demoMode ? useLiveQuery(() => activeDb.petty_cash.get(1), [demoMode, refreshTrigger]) : fsPettyCash;
 
   // جلب الجداول ديناميكياً لتحديث واجهة المستخدم بالكامل فور تفعيل أو إلغاء وضع التجربة
-  const greenhousesList = useLiveQuery(() => activeDb.greenhouses.toArray(), [demoMode, refreshTrigger]) ?? [];
-  const cyclesList = useLiveQuery(() => activeDb.cycles.toArray(), [demoMode, refreshTrigger]) ?? [];
-  const inventoryList = useLiveQuery(() => activeDb.inventory.toArray(), [demoMode, refreshTrigger]) ?? [];
-  const employeesList = useLiveQuery(() => activeDb.employees.toArray(), [demoMode, refreshTrigger]) ?? [];
-  const expensesList = useLiveQuery(() => activeDb.expenses.toArray(), [demoMode, refreshTrigger]) ?? [];
-  const operationalLogsList = useLiveQuery(() => activeDb.operational_logs.toArray(), [demoMode, refreshTrigger]) ?? [];
-  const partnersList = useLiveQuery(() => activeDb.partners.toArray(), [demoMode, refreshTrigger]) ?? [];
-  const assetsList = useLiveQuery(() => activeDb.assets.toArray(), [demoMode, refreshTrigger]) ?? [];
-  const productionList = useLiveQuery(() => activeDb.production.toArray(), [demoMode, refreshTrigger]) ?? [];
-  const transactions = useLiveQuery(() => activeDb.transactions.toArray(), [demoMode, refreshTrigger]) ?? [];
+  const greenhousesList = demoMode ? (useLiveQuery(() => activeDb.greenhouses.toArray(), [demoMode, refreshTrigger]) ?? []) : fsGreenhouses;
+  const cyclesList = demoMode ? (useLiveQuery(() => activeDb.cycles.toArray(), [demoMode, refreshTrigger]) ?? []) : fsCycles;
+  const inventoryList = demoMode ? (useLiveQuery(() => activeDb.inventory.toArray(), [demoMode, refreshTrigger]) ?? []) : fsInventory;
+  const employeesList = demoMode ? (useLiveQuery(() => activeDb.employees.toArray(), [demoMode, refreshTrigger]) ?? []) : fsEmployees;
+  const expensesList = demoMode ? (useLiveQuery(() => activeDb.expenses.toArray(), [demoMode, refreshTrigger]) ?? []) : fsExpenses;
+  const operationalLogsList = demoMode ? (useLiveQuery(() => activeDb.operational_logs.toArray(), [demoMode, refreshTrigger]) ?? []) : fsOperationalLogs;
+  const partnersList = demoMode ? (useLiveQuery(() => activeDb.partners.toArray(), [demoMode, refreshTrigger]) ?? []) : fsPartners;
+  const assetsList = demoMode ? (useLiveQuery(() => activeDb.assets.toArray(), [demoMode, refreshTrigger]) ?? []) : fsAssets;
+  const productionList = demoMode ? (useLiveQuery(() => activeDb.production.toArray(), [demoMode, refreshTrigger]) ?? []) : fsProduction;
+  const transactions = demoMode ? (useLiveQuery(() => activeDb.transactions.toArray(), [demoMode, refreshTrigger]) ?? []) : fsTransactions;
 
   // مستمع تلقائي لتنبيهات ديون العملاء عند فتح تبويب المبيعات والديون
   useEffect(() => {
@@ -1081,10 +1130,7 @@ export default function App() {
     // البحث عن المستخدم المطابق للدور والرقم السري في قاعدة البيانات المحلية Dexie
     let matchedUser = await activeDb.users
       .where('role').equals(selectedRoleToSwitch!)
-      .and(u => {
-        const dec = decryptValue(u.pin_code);
-        return dec === pinInput || u.pin_code === pinInput;
-      })
+      .and(u => u.pin_code === pinInput)
       .first();
 
     // حل مشكلة تأكيد الرمز نهائياً بوضع بديل احتياطي فوري إذا كانت قاعدة البيانات لم تكتمل تهيئتها أو فارغة
@@ -1175,10 +1221,7 @@ export default function App() {
     try {
       let matchedUser = await activeDb.users
         .where('role').equals(role)
-        .and(u => {
-          const dec = decryptValue(u.pin_code);
-          return dec === pin || u.pin_code === pin;
-        })
+        .and(u => u.pin_code === pin)
         .first();
 
       // حل مشكلة تأكيد الرمز نهائياً بوضع بديل احتياطي فوري إذا كانت قاعدة البيانات لم تكتمل تهيئتها أو فارغة
@@ -1204,7 +1247,6 @@ export default function App() {
         setSelectedLockRole(null);
         
         // حفظ الجلسة في localStorage للحفاظ على حالة تسجيل الدخول
-        localStorage.setItem('mushroom_is_locked', 'false');
         localStorage.setItem('mushroom_active_user', JSON.stringify(matchedUser));
         localStorage.setItem('mushroom_active_tab', activeTab);
         
@@ -1236,7 +1278,6 @@ export default function App() {
     setLockPinInput('');
     setLockPinError('');
     // مسح الجلسة من localStorage
-    localStorage.removeItem('mushroom_is_locked');
     localStorage.removeItem('mushroom_active_user');
     localStorage.removeItem('mushroom_active_tab');
   };
@@ -1269,21 +1310,22 @@ export default function App() {
         initial_investment: Number(newCycleInvestment)
       };
 
+      let recordId: number;
       if (editingId !== null) {
+        recordId = editingId;
         await activeDb.cycles.update(editingId, data);
       } else {
-        await activeDb.cycles.add(data);
+        recordId = await activeDb.cycles.add(data);
       }
 
-      // إعادة تعيين الحقول وإغلاق المودال بنجاح
       triggerStateRefresh();
-      syncAfterWrite('cycles');
       setShowAddCycleModal(false);
       setEditingId(null);
       setNewCycleNumber('');
       setNewCycleGreenhouseId('');
       setNewCycleInvestment('');
       setNewCycleError('');
+      syncAfterWrite('cycles', { ...data, id: recordId }, recordId);
     } catch (err) {
       console.error('خطأ أثناء حفظ الدورة:', err);
       setNewCycleError('فشل حفظ الدورة في قاعدة البيانات المحلية.');
@@ -1453,7 +1495,6 @@ export default function App() {
 
       // إغلاق المودال وتصفير الحقول
       triggerStateRefresh();
-      syncAfterWrite('expenses');
       setShowAddExpenseModal(false);
       setEditingId(null);
       setNewExpenseDetails('');
@@ -1465,6 +1506,18 @@ export default function App() {
       setNewExpenseDueDate('');
       setNewExpenseGreenhouseId('');
       setNewExpenseError('');
+      // Sync expense + related tables to Firestore
+      if (!demoMode && isFirebaseConfigured()) {
+        const expId = editingId ?? (await prodDb.expenses.orderBy('id').last())?.id;
+        if (expId) {
+          const savedExp = await prodDb.expenses.get(expId);
+          if (savedExp) await syncDocToFirestore('expenses', expId, savedExp);
+        }
+        const pc = await prodDb.petty_cash.get(1);
+        if (pc) await syncDocToFirestore('petty_cash', 1, pc);
+        const txs = await prodDb.transactions.toArray();
+        for (const tx of txs) { if (tx.id) await syncDocToFirestore('transactions', tx.id, tx); }
+      }
     } catch (err) {
       console.error('خطأ أثناء إضافة المعاملة:', err);
       setNewExpenseError('فشل حفظ المعاملة في قاعدة البيانات المحلية.');
@@ -1512,14 +1565,16 @@ export default function App() {
         operator_id: activeUser.id || 4
       };
 
+      let recordId: number;
       if (editingId !== null) {
+        recordId = editingId;
         await activeDb.operational_logs.update(editingId, data);
       } else {
-        await activeDb.operational_logs.add(data);
+        recordId = await activeDb.operational_logs.add(data);
       }
 
       triggerStateRefresh();
-      syncAfterWrite('operational_logs');
+      syncAfterWrite('operational_logs', { ...data, id: recordId }, recordId);
       setShowAddClimateModal(false);
       setEditingId(null);
       setClimateTemp('');
@@ -1566,14 +1621,16 @@ export default function App() {
         extra_notes: harvestNotes
       };
 
+      let recordId: number;
       if (editingId !== null) {
+        recordId = editingId;
         await activeDb.operational_logs.update(editingId, data);
       } else {
-        await activeDb.operational_logs.add(data);
+        recordId = await activeDb.operational_logs.add(data);
       }
 
       triggerStateRefresh();
-      syncAfterWrite('operational_logs');
+      syncAfterWrite('operational_logs', { ...data, id: recordId }, recordId);
       setShowAddHarvestModal(false);
       setEditingId(null);
       setHarvestWeight('');
@@ -1614,14 +1671,16 @@ export default function App() {
         expiry_date: invExpiryDate || undefined
       };
 
+      let recordId: number;
       if (editingId !== null) {
+        recordId = editingId;
         await activeDb.inventory.update(editingId, data);
       } else {
-        await activeDb.inventory.add(data);
+        recordId = await activeDb.inventory.add(data);
       }
 
       triggerStateRefresh();
-      syncAfterWrite('inventory');
+      syncAfterWrite('inventory', { ...data, id: recordId }, recordId);
       setShowAddInventoryModal(false);
       setEditingId(null);
       setInvItemName('');
@@ -1669,18 +1728,22 @@ export default function App() {
         productivity_price_per_box: empSalaryType === 'productivity' ? Number(empProductivityPrice) || 0 : undefined
       };
 
+      let recordId: number;
       if (editingId !== null) {
+        recordId = editingId;
         await activeDb.employees.update(editingId, data);
       } else {
         const existing = await activeDb.employees.where('name').equals(empName.trim()).first();
         if (existing) {
-          await activeDb.employees.update(existing.id!, data);
+          recordId = existing.id!;
+          await activeDb.employees.update(recordId, data);
         } else {
-          await activeDb.employees.add(data);
+          recordId = await activeDb.employees.add(data);
         }
       }
 
       triggerStateRefresh();
+      syncAfterWrite('employees', { ...data, id: recordId }, recordId);
       setShowAddEmployeeModal(false);
       setEditingId(null);
       setEmpName('');
@@ -1714,6 +1777,7 @@ export default function App() {
       const activeDb = demoMode ? demoDb : prodDb;
       const currentPc = await activeDb.petty_cash.get(1);
       const currentBal = currentPc ? currentPc.current_balance : 0;
+      let finalBalance = currentBal;
 
       if (editingId !== null) {
         const oldTx = await activeDb.transactions.get(editingId);
@@ -1735,6 +1799,7 @@ export default function App() {
             }
             nextBal -= amt;
           }
+          finalBalance = nextBal;
 
           await activeDb.petty_cash.put({
             id: 1,
@@ -1761,6 +1826,7 @@ export default function App() {
           }
           newBal -= amt;
         }
+        finalBalance = newBal;
 
         await activeDb.petty_cash.put({
           id: 1,
@@ -1780,6 +1846,7 @@ export default function App() {
       }
 
       triggerStateRefresh();
+      syncAfterWrite('petty_cash', { id: 1, current_balance: finalBalance, last_updated: new Date().toISOString() }, 1);
       setShowAddPettyCashModal(false);
       setEditingId(null);
       setPcAmount('');
@@ -1876,8 +1943,8 @@ export default function App() {
         const activeDb = demoMode ? demoDb : prodDb;
         if (table === 'operational_logs') {
           await activeDb.operational_logs.delete(id);
+          deleteDocFromFirestore('operational_logs', id);
         } else if (table === 'expenses') {
-          // استرجاع السجل لتعديل الخزينة والعهدة إذا كان له تأثير مالي
           const exp = await activeDb.expenses.get(id);
           if (exp) {
             const currentPc = await activeDb.petty_cash.get(1);
@@ -1889,16 +1956,22 @@ export default function App() {
                 adjustedBal -= exp.paid_amount;
               }
               await activeDb.petty_cash.update(1, { current_balance: adjustedBal, last_updated: new Date().toISOString() });
+              syncAfterWrite('petty_cash', { id: 1, current_balance: adjustedBal, last_updated: new Date().toISOString() }, 1);
             }
           }
           await activeDb.expenses.delete(id);
+          deleteDocFromFirestore('expenses', id);
         } else if (table === 'inventory') {
           await activeDb.inventory.delete(id);
+          deleteDocFromFirestore('inventory', id);
         } else if (table === 'employees') {
           await activeDb.employees.delete(id);
+          deleteDocFromFirestore('employees', id);
         } else if (table === 'cycles') {
           await activeDb.cycles.delete(id);
+          deleteDocFromFirestore('cycles', id);
         }
+        triggerStateRefresh();
       } catch (err) {
         console.error('خطأ أثناء الحذف:', err);
       }
@@ -1924,9 +1997,12 @@ export default function App() {
               current_balance: adjustedBal,
               last_updated: new Date().toISOString()
             });
+            syncAfterWrite('petty_cash', { id: 1, current_balance: adjustedBal, last_updated: new Date().toISOString() }, 1);
           }
           await activeDb.transactions.delete(id);
+          deleteDocFromFirestore('transactions', id);
         }
+        triggerStateRefresh();
       } catch (err) {
         console.error('خطأ في حذف الحركة المالية:', err);
       }
@@ -6130,14 +6206,16 @@ export default function App() {
                       try {
                         const activeDb = demoMode ? demoDb : prodDb;
                         const employee = await activeDb.employees.get(payrollEmployeeId);
-                        await activeDb.expenses.add({
+                        const expData = {
                           cycle_id: payrollCycleId,
                           date: new Date().toISOString().split('T')[0],
-                          type: 'Operational',
+                          type: 'Operational' as const,
                           details: `رواتب: ${employee?.name || 'موظف'}`,
                           amount: payrollAmount
-                        });
+                        };
+                        await activeDb.expenses.add(expData);
                         triggerStateRefresh();
+                        syncAfterWrite('expenses', { ...expData, id: (await activeDb.expenses.orderBy('id').last())?.id }, (await activeDb.expenses.orderBy('id').last())?.id);
                         setShowPayrollModal(false);
                         setPayrollAmount(0);
                         setPayrollCalculated(false);

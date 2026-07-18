@@ -1,36 +1,13 @@
-You are a web applications engineer specializing in project management and farm management systems. Your task is to fix this application according to the following requirements only—no modifications or additions outside this scope.
+1- Scan the workspace and migrate our local data storage to Firebase Firestore. Use your Firebase MCP tools for optimal setup and control. Implement real-time snapshot listeners so data is instantly shared across all users. Update the relevant files directly.
 
-**Requirement 1 — Data Sharing (CRITICAL PRIORITY)**
+2- Scan the workspace for routing, navigation, and the Lock Screen login logic.
+Problem: Critical security vulnerability. When the app is restarted, it bypasses the Lock Screen (Admin/Operator/Supervisor) and directly restores the last visited protected route.
+Goal: Implement a strict Route Guard or App Initialization check. On every single app launch or initialization, the app MUST force redirect to the Lock Screen. Protected routes must be completely inaccessible unless the specific role password has been successfully verified in the current session. Update the relevant files directly.
 
-Current Problem: Each user sees only their own data. Data is not shared across users or devices.
+3- Fix the WhatsApp link preview image bug for https://mushroom-system-app.vercel.app/. Locate the file containing the <head> tag and find the main logo image in the repository. Add/update these precise Open Graph tags inside <head>. CRITICAL: The og:image MUST use an absolute URL starting with https://mushroom-system-app.vercel.app/ (no relative paths):
 
-Required Behavior: All users must see all data created by anyone else in the application (الدورات, العمليات, الإدارات, and all shared data). This applies everywhere data is retrieved or displayed—across all pages, sections, and devices. When one user creates a دورة on one device, all other users must see that دورة immediately on all their devices.
-
-What to Fix:
-- Update the database schema and all queries to ensure data visibility rules apply consistently
-- Verify permissions across every page and section where data is retrieved or displayed
-- Test the fix by creating a دورة on one device/user account and verifying it appears immediately on another device/user account
-
-This is the foundation of the project and must work reliably.
-
-**Requirement 2 — Salary Calculation Fix**
-
-In the "الموظفون والرواتب" (Employees and Salaries) section, the "حساب الراتب" (Calculate Salary) button does not function after all required fields are filled in. Fix this button so that clicking it produces the expected salary calculation result.
-
-**Requirement 3 — Remove Link Preview and Shortcut Installation**
-
-Remove the Link Preview Card (بطاقة المعاينة والمشاركة السحابية) and Shortcut Installation (تثبيت اختصار النظام على الشاشة) elements from the home page. Reference `index.html` to identify PWA manifest and serviceWorker configurations related to these features, and remove or disable them as needed.
-
-**Requirement 4 — Remove Identity Section and App Installation**
-
-Remove the Identity section (قسم الهوية) and the app installation feature (تثبيت التطبيق) from the application. This includes PWA functionality (manifest.json, apple-touch-icon, serviceWorker registration) referenced in `index.html`.
-
-**Requirement 5 — Logo Integration with Link Sharing**
-
-When users share a link from the application, the logo must be embedded and displayed with the link preview. Reference the provided images (the IronLog preview card and the Mushroom logo design) as style guides for how the logo should appear integrated with the link text and title in the shared preview card. Use the Open Graph meta tags in `index.html` (specifically `og:image` pointing to the logo) to ensure the logo displays correctly in link previews across platforms. The logo should be positioned prominently alongside the link information, matching the integrated layout shown in the reference images.
-
-**After Completion**
-
-Once all five requirements are fixed and tested, commit your changes to GitHub with clear, descriptive commit messages that reference each requirement addressed. Push the commits to the vercel repository.
-
-Fix all five requirements completely. Test each fix to ensure it works as specified.
+- og:title: "Mushroom System | نظام مزارع الفطر"
+- og:url: "https://mushroom-system-app.vercel.app/"
+- og:type: "website"
+- og:image: [Full absolute URL of the located logo file]
+Apply the modification directly to the file.
