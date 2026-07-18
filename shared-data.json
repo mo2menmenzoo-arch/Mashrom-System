@@ -1,5 +1,30 @@
 {
-  "users": {},
+  "users": {
+    "1": {
+      "id": 1,
+      "name": "الإدارة العامة (مؤمن)",
+      "pin_code": "7391",
+      "role": "Admin"
+    },
+    "2": {
+      "id": 2,
+      "name": "الإدارة العامة (محمود)",
+      "pin_code": "2846",
+      "role": "Admin"
+    },
+    "3": {
+      "id": 3,
+      "name": "المشرف المناوب",
+      "pin_code": "9514",
+      "role": "Supervisor"
+    },
+    "4": {
+      "id": 4,
+      "name": "المشغل الفني",
+      "pin_code": "8263",
+      "role": "Operator"
+    }
+  },
   "partners": {},
   "greenhouses": {},
   "cycles": {},
