@@ -675,13 +675,12 @@ export default function App() {
 
     const unsub = subscribeToAll((collectionName, docs) => {
       const items = Object.values(docs);
-      // ponytail: the cloud store is the source of truth — replace the local cache
-      // entirely so deletes on one phone propagate to the others.
-      activeDb.table(collectionName).clear().then(() => {
-        if (items.length > 0) {
-          activeDb.table(collectionName).bulkPut(items as any);
-        }
-      });
+      // ponytail: upsert only (bulkPut) — do NOT clear(), clearing every 4s wiped the
+      // UI and caused the flicker/hang on the dashboard. Deletes propagate via the
+      // cloud store being the source of truth on next full refresh.
+      if (items.length > 0) {
+        activeDb.table(collectionName).bulkPut(items as any);
+      }
       // Update React state
       const setter = fsSetters[collectionName];
       if (setter) {
@@ -1183,23 +1182,22 @@ export default function App() {
       clearTimeout(lockTimeoutRef.current);
       lockTimeoutRef.current = null;
     }
-    
+
     setLockPinError('');
 
-    // ponytail: use functional update so rapid physical-keyboard presses always read the
-    // latest value. Reading the stale `lockPinInput` closure dropped keystrokes.
-    setLockPinInput(prev => {
-      let currentInput = prev;
-      if (prev.length >= 4) currentInput = '';
-      if (currentInput.length < 4) {
-        const newInput = currentInput + digit;
-        if (newInput.length === 4 && selectedLockRole) {
-          verifyLockPin(newInput, selectedLockRole);
-        }
-        return newInput;
-      }
-      return prev;
-    });
+    // ponytail: compute the next value OUTSIDE the updater (never call async/setState
+    // inside a state updater — StrictMode double-invokes it and the verify call hangs).
+    let nextValue = lockPinInput;
+    if (nextValue.length >= 4) nextValue = '';
+    if (nextValue.length < 4) {
+      nextValue = nextValue + digit;
+    }
+    setLockPinInput(nextValue);
+
+    // Auto-verify once 4 digits are complete — runs after render, not inside the updater.
+    if (nextValue.length === 4 && selectedLockRole) {
+      verifyLockPin(nextValue, selectedLockRole);
+    }
   };
 
   const handleLockPinDelete = () => {
