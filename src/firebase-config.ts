@@ -33,3 +33,9 @@ export async function ensureAnonymousAuth(): Promise<boolean> {
 export function isFirebaseConfigured(): boolean {
   return !!(import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_PROJECT_ID);
 }
+
+// ponytail: the shared store is the Vercel API (api/store.js) which is always
+// available on the deployed site, so cloud sync is effectively always on.
+export function isCloudConfigured(): boolean {
+  return true;
+}

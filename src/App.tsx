@@ -7,8 +7,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 const appLogo = '/logo.png';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { prodDb, demoDb, seedInitialData, injectDemoData, clearDemoData, runAtomicTransaction, exportEncryptedBackup, importEncryptedBackup, registerSyncHandlers, syncDocToFirestore, deleteDocFromFirestore, type User } from './db';
-import { writeDoc as firestoreWriteDoc, deleteDocById as firestoreDeleteDoc, subscribeToAll, isCollectionEmpty, bulkWriteCollection } from './firestore-service';
-import { isFirebaseConfigured, ensureAnonymousAuth } from './firebase-config';
+import { writeDoc as cloudWriteDoc, deleteDocById as cloudDeleteDoc, subscribeToAll, isCollectionEmpty, bulkWriteCollection } from './cloud-sync';
+import { isFirebaseConfigured, isCloudConfigured } from './firebase-config';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -453,9 +453,8 @@ export default function App() {
   const triggerStateRefresh = () => setRefreshTrigger(prev => prev + 1);
 
   const syncAfterWrite = async (tableName: string, data?: any, recordId?: string | number) => {
-    // ponytail: always sync to Firestore when configured — shared workspace across all
-    // phones, regardless of demo/prod flag. The flag only switches the local cache.
-    if (!isFirebaseConfigured()) return;
+    // ponytail: always sync to the cloud store — shared workspace across all phones.
+    if (!isCloudConfigured()) return;
     if (data && recordId !== undefined) {
       await syncDocToFirestore(tableName, recordId, data);
     }
@@ -640,25 +639,25 @@ export default function App() {
         // while Firebase auth/sync finishes in the background. This removes the boot "hang".
         setDbSeeded(true);
 
-        // Register Firestore write handlers
-        registerSyncHandlers(firestoreWriteDoc, firestoreDeleteDoc);
+        // Register cloud write handlers (Vercel API -> shared GitHub JSON)
+        registerSyncHandlers(cloudWriteDoc, cloudDeleteDoc);
 
-        // ponytail: non-blocking auth + migration — fire-and-forget, never block the view.
-        // Runs whenever Firebase is configured so local data reaches the shared store.
-        if (isFirebaseConfigured()) {
-          ensureAnonymousAuth()
-            .then(() => {
-              const tables = ['users','partners','greenhouses','cycles','inventory','petty_cash','transactions','expenses','operational_logs','employees','assets','production'];
-              return Promise.all(tables.map(async (table) => {
-                if (await isCollectionEmpty(table as any)) {
-                  const localData = await activeDb.table(table).toArray();
-                  if (localData.length > 0) {
-                    await bulkWriteCollection(table as any, localData);
-                  }
+        // ponytail: non-blocking one-time migration — push any existing local data
+        // into the shared store so it appears on other phones too.
+        if (isCloudConfigured()) {
+          try {
+            const tables: any[] = ['users','partners','greenhouses','cycles','inventory','petty_cash','transactions','expenses','operational_logs','employees','assets','production'];
+            await Promise.all(tables.map(async (table) => {
+              if (await isCollectionEmpty(table as any)) {
+                const localData = await activeDb.table(table).toArray();
+                if (localData.length > 0) {
+                  await bulkWriteCollection(table as any, localData);
                 }
-              }));
-            })
-            .catch(err => console.warn('[firebase] background sync skipped:', err));
+              }
+            }));
+          } catch (err) {
+            console.warn('[cloud] migration skipped:', err);
+          }
         }
       } catch (err) {
         console.error('فشل في بذر قاعدة البيانات:', err);
@@ -669,17 +668,20 @@ export default function App() {
     initDB();
   }, []);
 
-  // Subscribe to Firestore real-time updates — runs whenever Firebase is configured so
-  // data created on one phone appears on every other phone (shared workspace).
+  // Subscribe to cloud real-time updates — polls the shared store so data created
+  // on one phone appears on every other phone.
   useEffect(() => {
-    if (!isFirebaseConfigured() || !dbSeeded) return;
+    if (!isCloudConfigured() || !dbSeeded) return;
 
     const unsub = subscribeToAll((collectionName, docs) => {
       const items = Object.values(docs);
-      // Write through to the active local cache so the UI reflects shared data
-      if (items.length > 0) {
-        activeDb.table(collectionName).bulkPut(items as any);
-      }
+      // ponytail: the cloud store is the source of truth — replace the local cache
+      // entirely so deletes on one phone propagate to the others.
+      activeDb.table(collectionName).clear().then(() => {
+        if (items.length > 0) {
+          activeDb.table(collectionName).bulkPut(items as any);
+        }
+      });
       // Update React state
       const setter = fsSetters[collectionName];
       if (setter) {
