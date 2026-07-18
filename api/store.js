@@ -168,7 +168,7 @@ module.exports = async (req, res) => {
 
     res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
-    console.error('store error:', err);
-    res.status(500).json({ error: String(err.message || err) });
+    console.error('store error:', err && err.stack ? err.stack : err);
+    res.status(500).json({ error: String(err && err.message ? err.message : err), hasToken: !!process.env.GITHUB_TOKEN });
   }
 };
