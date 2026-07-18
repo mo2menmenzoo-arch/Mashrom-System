@@ -27,16 +27,7 @@
   },
   "partners": {},
   "greenhouses": {},
-  "cycles": {
-    "5": {
-      "greenhouse_id": 1,
-      "cycle_number": "احا",
-      "start_date": "2026-07-18",
-      "status": "Active",
-      "initial_investment": 500,
-      "id": 5
-    }
-  },
+  "cycles": {},
   "inventory": {},
   "petty_cash": {
     "1": {
