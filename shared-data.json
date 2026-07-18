@@ -27,16 +27,7 @@
   },
   "partners": {},
   "greenhouses": {},
-  "cycles": {
-    "4": {
-      "id": 4,
-      "cycle_number": "هبل",
-      "start_date": "2026-07-18",
-      "greenhouse_id": 1,
-      "initial_investment": 454,
-      "status": "Active"
-    }
-  },
+  "cycles": {},
   "inventory": {},
   "petty_cash": {
     "1": {
