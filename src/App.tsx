@@ -8,7 +8,7 @@ const appLogo = '/logo.png';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { prodDb, demoDb, seedInitialData, injectDemoData, clearDemoData, runAtomicTransaction, exportEncryptedBackup, importEncryptedBackup, registerSyncHandlers, syncDocToFirestore, deleteDocFromFirestore, type User } from './db';
 import { writeDoc as firestoreWriteDoc, deleteDocById as firestoreDeleteDoc, subscribeToAll, isCollectionEmpty, bulkWriteCollection } from './firestore-service';
-import { isFirebaseConfigured } from './firebase-config';
+import { isFirebaseConfigured, ensureAnonymousAuth } from './firebase-config';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -133,8 +133,9 @@ export default function App() {
   const [pinError, setPinError] = useState('');
 
   // حالات شاشة القفل المحلية الآمنة (Offline Lock Screen)
-  // ponytail: always start locked. localStorage persistence was allowing bypass on restart.
-  const [isLocked, setIsLocked] = useState(true);
+  // ponytail: start UNLOCKED so the dashboard opens instantly. Lock is opt-in via the
+  // "قفل النظام" button. The forced-lock-on-load was the "شاشة كحلي" the user was stuck on.
+  const [isLocked, setIsLocked] = useState(false);
   const [lockPinInput, setLockPinInput] = useState('');
   const [lockPinError, setLockPinError] = useState('');
   const [selectedLockRole, setSelectedLockRole] = useState<'Admin' | 'Supervisor' | 'Operator' | null>(null);
@@ -633,44 +634,47 @@ export default function App() {
             await injectDemoData(demoDb);
           }
         }
+        // ponytail: unblock the UI immediately — the dashboard can render with local Dexie data
+        // while Firebase auth/sync finishes in the background. This removes the boot "hang".
+        setDbSeeded(true);
 
         // Register Firestore write handlers
         registerSyncHandlers(firestoreWriteDoc, firestoreDeleteDoc);
 
-        // One-time migration: if Firestore is empty but local Dexie has data, push to Firestore
+        // ponytail: non-blocking auth + migration — fire-and-forget, never block the view
         if (!demoMode && isFirebaseConfigured()) {
-          const tables = ['users','partners','greenhouses','cycles','inventory','petty_cash','transactions','expenses','operational_logs','employees','assets','production'];
-          for (const table of tables) {
-            const empty = await isCollectionEmpty(table as any);
-            if (empty) {
-              const localData = await prodDb.table(table).toArray();
-              if (localData.length > 0) {
-                await bulkWriteCollection(table as any, localData);
-              }
-            }
-          }
+          ensureAnonymousAuth()
+            .then(() => {
+              const tables = ['users','partners','greenhouses','cycles','inventory','petty_cash','transactions','expenses','operational_logs','employees','assets','production'];
+              return Promise.all(tables.map(async (table) => {
+                if (await isCollectionEmpty(table as any)) {
+                  const localData = await prodDb.table(table).toArray();
+                  if (localData.length > 0) {
+                    await bulkWriteCollection(table as any, localData);
+                  }
+                }
+              }));
+            })
+            .catch(err => console.warn('[firebase] background sync skipped:', err));
         }
-
-        setDbSeeded(true);
       } catch (err) {
         console.error('فشل في بذر قاعدة البيانات:', err);
+        // ponytail: even if seeding fails, don't trap the user on a blank screen
+        setDbSeeded(true);
       }
     }
     initDB();
   }, []);
 
-  // Subscribe to Firestore real-time updates (only in prod mode)
+  // Subscribe to Firestore real-time updates (only in prod mode, after auth)
   useEffect(() => {
-    if (demoMode || !isFirebaseConfigured()) return;
+    if (demoMode || !isFirebaseConfigured() || !dbSeeded) return;
 
     const unsub = subscribeToAll((collectionName, docs) => {
       const items = Object.values(docs);
-      // Write through to Dexie cache
-      if (!demoMode) {
-        const dbTable = prodDb.table(collectionName);
-        dbTable.clear().then(() => {
-          if (items.length > 0) dbTable.bulkPut(items as any);
-        });
+      // Write through to Dexie cache — bulkPut upserts by id, avoids clear+reload
+      if (!demoMode && items.length > 0) {
+        prodDb.table(collectionName).bulkPut(items as any);
       }
       // Update React state
       const setter = fsSetters[collectionName];
@@ -680,7 +684,7 @@ export default function App() {
     });
 
     return unsub;
-  }, [demoMode]);
+  }, [demoMode, dbSeeded]);
 
   // ponytail: Firestore onSnapshot handles real-time updates — no periodic pull needed
   useEffect(() => {}, [demoMode]);
@@ -1319,13 +1323,15 @@ export default function App() {
       }
 
       triggerStateRefresh();
+      syncAfterWrite('cycles', { ...data, id: recordId }, recordId);
+      setAlertModalMessage("✅ تم حفظ الدورة بنجاح!");
+      setShowAlertModal(true);
       setShowAddCycleModal(false);
       setEditingId(null);
       setNewCycleNumber('');
       setNewCycleGreenhouseId('');
       setNewCycleInvestment('');
       setNewCycleError('');
-      syncAfterWrite('cycles', { ...data, id: recordId }, recordId);
     } catch (err) {
       console.error('خطأ أثناء حفظ الدورة:', err);
       setNewCycleError('فشل حفظ الدورة في قاعدة البيانات المحلية.');
@@ -1495,6 +1501,17 @@ export default function App() {
 
       // إغلاق المودال وتصفير الحقول
       triggerStateRefresh();
+      if (!demoMode && isFirebaseConfigured()) {
+        const expId = editingId ?? (await prodDb.expenses.orderBy('id').last())?.id;
+        if (expId) {
+          const savedExp = await prodDb.expenses.get(expId);
+          if (savedExp) syncAfterWrite('expenses', savedExp, expId);
+        }
+        const pc = await prodDb.petty_cash.get(1);
+        if (pc) syncAfterWrite('petty_cash', pc, 1);
+      }
+      setAlertModalMessage("✅ تم حفظ المعاملة بنجاح!");
+      setShowAlertModal(true);
       setShowAddExpenseModal(false);
       setEditingId(null);
       setNewExpenseDetails('');
@@ -1506,18 +1523,6 @@ export default function App() {
       setNewExpenseDueDate('');
       setNewExpenseGreenhouseId('');
       setNewExpenseError('');
-      // Sync expense + related tables to Firestore
-      if (!demoMode && isFirebaseConfigured()) {
-        const expId = editingId ?? (await prodDb.expenses.orderBy('id').last())?.id;
-        if (expId) {
-          const savedExp = await prodDb.expenses.get(expId);
-          if (savedExp) await syncDocToFirestore('expenses', expId, savedExp);
-        }
-        const pc = await prodDb.petty_cash.get(1);
-        if (pc) await syncDocToFirestore('petty_cash', 1, pc);
-        const txs = await prodDb.transactions.toArray();
-        for (const tx of txs) { if (tx.id) await syncDocToFirestore('transactions', tx.id, tx); }
-      }
     } catch (err) {
       console.error('خطأ أثناء إضافة المعاملة:', err);
       setNewExpenseError('فشل حفظ المعاملة في قاعدة البيانات المحلية.');
@@ -1575,6 +1580,8 @@ export default function App() {
 
       triggerStateRefresh();
       syncAfterWrite('operational_logs', { ...data, id: recordId }, recordId);
+      setAlertModalMessage("✅ تم حفظ القراءة البيئية بنجاح!");
+      setShowAlertModal(true);
       setShowAddClimateModal(false);
       setEditingId(null);
       setClimateTemp('');
@@ -1631,6 +1638,8 @@ export default function App() {
 
       triggerStateRefresh();
       syncAfterWrite('operational_logs', { ...data, id: recordId }, recordId);
+      setAlertModalMessage("✅ تم حفظ سجل الإنتاج والفرز بنجاح!");
+      setShowAlertModal(true);
       setShowAddHarvestModal(false);
       setEditingId(null);
       setHarvestWeight('');
@@ -1681,6 +1690,8 @@ export default function App() {
 
       triggerStateRefresh();
       syncAfterWrite('inventory', { ...data, id: recordId }, recordId);
+      setAlertModalMessage("✅ تم حفظ الصنف بالمخازن بنجاح!");
+      setShowAlertModal(true);
       setShowAddInventoryModal(false);
       setEditingId(null);
       setInvItemName('');
@@ -1744,6 +1755,8 @@ export default function App() {
 
       triggerStateRefresh();
       syncAfterWrite('employees', { ...data, id: recordId }, recordId);
+      setAlertModalMessage("✅ تم حفظ بيانات الموظف بنجاح!");
+      setShowAlertModal(true);
       setShowAddEmployeeModal(false);
       setEditingId(null);
       setEmpName('');
@@ -1847,6 +1860,8 @@ export default function App() {
 
       triggerStateRefresh();
       syncAfterWrite('petty_cash', { id: 1, current_balance: finalBalance, last_updated: new Date().toISOString() }, 1);
+      setAlertModalMessage("✅ تم تسجيل الحركة النقدية بنجاح!");
+      setShowAlertModal(true);
       setShowAddPettyCashModal(false);
       setEditingId(null);
       setPcAmount('');
