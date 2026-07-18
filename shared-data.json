@@ -4,7 +4,13 @@
   "greenhouses": {},
   "cycles": {},
   "inventory": {},
-  "petty_cash": {},
+  "petty_cash": {
+    "1": {
+      "id": 1,
+      "current_balance": 0,
+      "last_updated": "2026-07-18T16:50:45.415Z"
+    }
+  },
   "transactions": {},
   "expenses": {},
   "operational_logs": {},
