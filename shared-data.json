@@ -1,14 +1,7 @@
 {
   "users": {},
   "partners": {},
-  "greenhouses": {
-    "1": {
-      "id": 1,
-      "name": "test-gh",
-      "capacity": 100,
-      "status": "Active"
-    }
-  },
+  "greenhouses": {},
   "cycles": {},
   "inventory": {},
   "petty_cash": {},
