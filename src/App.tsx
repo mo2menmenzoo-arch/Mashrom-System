@@ -453,7 +453,9 @@ export default function App() {
   const triggerStateRefresh = () => setRefreshTrigger(prev => prev + 1);
 
   const syncAfterWrite = async (tableName: string, data?: any, recordId?: string | number) => {
-    if (demoMode || !isFirebaseConfigured()) return;
+    // ponytail: always sync to Firestore when configured — shared workspace across all
+    // phones, regardless of demo/prod flag. The flag only switches the local cache.
+    if (!isFirebaseConfigured()) return;
     if (data && recordId !== undefined) {
       await syncDocToFirestore(tableName, recordId, data);
     }
@@ -641,14 +643,15 @@ export default function App() {
         // Register Firestore write handlers
         registerSyncHandlers(firestoreWriteDoc, firestoreDeleteDoc);
 
-        // ponytail: non-blocking auth + migration — fire-and-forget, never block the view
-        if (!demoMode && isFirebaseConfigured()) {
+        // ponytail: non-blocking auth + migration — fire-and-forget, never block the view.
+        // Runs whenever Firebase is configured so local data reaches the shared store.
+        if (isFirebaseConfigured()) {
           ensureAnonymousAuth()
             .then(() => {
               const tables = ['users','partners','greenhouses','cycles','inventory','petty_cash','transactions','expenses','operational_logs','employees','assets','production'];
               return Promise.all(tables.map(async (table) => {
                 if (await isCollectionEmpty(table as any)) {
-                  const localData = await prodDb.table(table).toArray();
+                  const localData = await activeDb.table(table).toArray();
                   if (localData.length > 0) {
                     await bulkWriteCollection(table as any, localData);
                   }
@@ -666,15 +669,16 @@ export default function App() {
     initDB();
   }, []);
 
-  // Subscribe to Firestore real-time updates (only in prod mode, after auth)
+  // Subscribe to Firestore real-time updates — runs whenever Firebase is configured so
+  // data created on one phone appears on every other phone (shared workspace).
   useEffect(() => {
-    if (demoMode || !isFirebaseConfigured() || !dbSeeded) return;
+    if (!isFirebaseConfigured() || !dbSeeded) return;
 
     const unsub = subscribeToAll((collectionName, docs) => {
       const items = Object.values(docs);
-      // Write through to Dexie cache — bulkPut upserts by id, avoids clear+reload
-      if (!demoMode && items.length > 0) {
-        prodDb.table(collectionName).bulkPut(items as any);
+      // Write through to the active local cache so the UI reflects shared data
+      if (items.length > 0) {
+        activeDb.table(collectionName).bulkPut(items as any);
       }
       // Update React state
       const setter = fsSetters[collectionName];
