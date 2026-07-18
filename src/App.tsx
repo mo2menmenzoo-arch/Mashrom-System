@@ -1001,7 +1001,8 @@ export default function App() {
   const totalCycles = demoMode ? (useLiveQuery(() => activeDb.cycles.count(), [demoMode, refreshTrigger]) ?? 0) : fsCycles.length;
   const totalEmployees = demoMode ? (useLiveQuery(() => activeDb.employees.count(), [demoMode, refreshTrigger]) ?? 0) : fsEmployees.length;
   const totalInventory = demoMode ? (useLiveQuery(() => activeDb.inventory.count(), [demoMode, refreshTrigger]) ?? 0) : fsInventory.length;
-  const pettyCashRecord = demoMode ? useLiveQuery(() => activeDb.petty_cash.get(1), [demoMode, refreshTrigger]) : fsPettyCash;
+  // ponytail: cloud sync pushes an array from Object.values(docs); Dexie expects a single object.
+  const pettyCashRecord = demoMode ? useLiveQuery(() => activeDb.petty_cash.get(1), [demoMode, refreshTrigger]) : (Array.isArray(fsPettyCash) ? fsPettyCash[0] ?? null : fsPettyCash);
 
   // جلب الجداول ديناميكياً لتحديث واجهة المستخدم بالكامل فور تفعيل أو إلغاء وضع التجربة
   const greenhousesList = demoMode ? (useLiveQuery(() => activeDb.greenhouses.toArray(), [demoMode, refreshTrigger]) ?? []) : fsGreenhouses;
@@ -1190,25 +1191,11 @@ export default function App() {
     setLockPinError('');
 
     // ponytail: use functional update so rapid physical-keyboard presses always read the
-    // latest value (reading the stale `lockPinInput` closure dropped keystrokes / froze).
-    // Capture the computed value in a ref-like local so we can verify AFTER the update,
-    // never inside the updater (StrictMode double-invokes updaters → verify hangs).
-    let computed = '';
+    // latest value. Verification is handled by the useEffect watching lockPinInput.
     setLockPinInput(prev => {
-      let currentInput = prev;
-      if (prev.length >= 4) currentInput = '';
-      if (currentInput.length < 4) {
-        computed = currentInput + digit;
-        return computed;
-      }
-      computed = prev;
-      return prev;
+      if (prev.length >= 4) return digit;
+      return prev + digit;
     });
-
-    // Auto-verify once 4 digits are complete — runs after render, not inside the updater.
-    if (computed.length === 4 && selectedLockRole) {
-      verifyLockPin(computed, selectedLockRole);
-    }
   };
 
   const handleLockPinDelete = () => {
@@ -1229,7 +1216,15 @@ export default function App() {
     setLockPinInput('');
   };
 
-  const verifyLockPin = async (pin: string, role: 'Admin' | 'Supervisor' | 'Operator') => {
+  // ponytail: auto-verify when PIN reaches 4 digits — replaces the fragile computed-variable
+  // approach that relied on synchronous updater reads (React 18/19 batches defer those).
+  useEffect(() => {
+    if (lockPinInput.length === 4 && selectedLockRole) {
+      verifyLockPin(lockPinInput, selectedLockRole);
+    }
+  }, [lockPinInput, selectedLockRole]);
+
+  const verifyLockPin = (pin: string, role: 'Admin' | 'Supervisor' | 'Operator') => {
     // تدمير أي مؤقتات سابقة فوراً
     if (lockTimeoutRef.current) {
       clearTimeout(lockTimeoutRef.current);
@@ -2145,7 +2140,7 @@ export default function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isLocked]);
+  }, [isLocked, selectedLockRole]);
 
   // Lock screen early return — prevents data queries and sync when locked
   if (isLocked) {
