@@ -118,7 +118,8 @@ function deleteRow(dataset, table, id) {
 }
 
 export default async function handler(req, res) {
-  const token = process.env.GITHUB_TOKEN;
+  // ponytail: trim the token — vercel env add via echo can inject a trailing newline
+  const token = (process.env.GITHUB_TOKEN || '').trim();
   if (!token) {
     res.status(500).json({ error: 'GITHUB_TOKEN not configured' });
     return;
