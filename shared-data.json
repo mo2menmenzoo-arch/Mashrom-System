@@ -27,7 +27,16 @@
   },
   "partners": {},
   "greenhouses": {},
-  "cycles": {},
+  "cycles": {
+    "1": {
+      "greenhouse_id": 1,
+      "cycle_number": "فطر ",
+      "start_date": "2026-07-18",
+      "status": "Active",
+      "initial_investment": 55,
+      "id": 1
+    }
+  },
   "inventory": {},
   "petty_cash": {
     "1": {
