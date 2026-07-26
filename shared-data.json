@@ -26,7 +26,14 @@
     }
   },
   "partners": {},
-  "greenhouses": {},
+  "greenhouses": {
+    "1": {
+      "name": "A",
+      "capacity": 400,
+      "status": "Active",
+      "id": 1
+    }
+  },
   "cycles": {
     "1": {
       "greenhouse_id": 1,
