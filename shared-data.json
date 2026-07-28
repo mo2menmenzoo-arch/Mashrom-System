@@ -112,7 +112,29 @@
     }
   },
   "transactions": {},
-  "expenses": {},
+  "expenses": {
+    "1": {
+      "id": 1,
+      "cycle_id": 1,
+      "date": "2026-06-18",
+      "type": "Operational",
+      "details": "شراء خامات بيئية ومستلزمات تعقيم",
+      "amount": 2500,
+      "linked_inventory_item_id": 4
+    },
+    "2": {
+      "id": 2,
+      "cycle_id": 1,
+      "date": "2026-06-25",
+      "type": "Selling",
+      "total_boxes": 50,
+      "price_per_box": 120,
+      "customer_name": "محل السلام للمواد الغذائية",
+      "paid_amount": 4000,
+      "remaining_amount": 2000,
+      "total_amount": 6000
+    }
+  },
   "operational_logs": {},
   "employees": {
     "1": {
