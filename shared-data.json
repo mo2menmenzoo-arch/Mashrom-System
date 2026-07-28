@@ -148,6 +148,31 @@
       "id": 1
     }
   },
-  "assets": {},
+  "assets": {
+    "1": {
+      "id": 1,
+      "name": "جهاز تعقيم وحقن آلي",
+      "purchase_cost": 25000,
+      "purchase_date": "2025-01-01",
+      "useful_life": 5,
+      "accumulated_depreciation": 7500
+    },
+    "2": {
+      "id": 2,
+      "name": "مكيف هواء صناعي بقوة 5 حصان",
+      "purchase_cost": 18000,
+      "purchase_date": "2025-06-01",
+      "useful_life": 6,
+      "accumulated_depreciation": 3250
+    },
+    "3": {
+      "id": 3,
+      "name": "جهاز ترطيب ذكي فائق الضغط",
+      "purchase_cost": 8000,
+      "purchase_date": "2026-01-01",
+      "useful_life": 4,
+      "accumulated_depreciation": 1000
+    }
+  },
   "production": {}
 }
