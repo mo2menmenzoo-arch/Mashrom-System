@@ -69,7 +69,41 @@
       "id": 6
     }
   },
-  "inventory": {},
+  "inventory": {
+    "1": {
+      "id": 1,
+      "date_added": "2026-06-01",
+      "item_name": "أبواغ فطر محاري ممتاز",
+      "quantity": 150,
+      "unit": "كيس تلقيح",
+      "expiry_date": "2026-12-01",
+      "min_stock_alert": 20
+    },
+    "2": {
+      "id": 2,
+      "date_added": "2026-06-01",
+      "item_name": "مادة الجبس الزراعي الكالسي",
+      "quantity": 10,
+      "unit": "شيكارة",
+      "min_stock_alert": 2
+    },
+    "3": {
+      "id": 3,
+      "date_added": "2026-06-01",
+      "item_name": "صناديق كرتون للتعبئة",
+      "quantity": 500,
+      "unit": "قطعة",
+      "min_stock_alert": 50
+    },
+    "4": {
+      "id": 4,
+      "date_added": "2026-06-01",
+      "item_name": "محلول مطهر معقم فائق الفعالية",
+      "quantity": 5,
+      "unit": "جالون",
+      "min_stock_alert": 3
+    }
+  },
   "petty_cash": {
     "1": {
       "id": 1,
