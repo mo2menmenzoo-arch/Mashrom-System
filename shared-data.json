@@ -49,6 +49,12 @@
       "capacity": 400,
       "status": "Active",
       "id": 1
+    },
+    "2": {
+      "name": "soba A",
+      "capacity": 4000,
+      "status": "Active",
+      "id": 2
     }
   },
   "cycles": {
