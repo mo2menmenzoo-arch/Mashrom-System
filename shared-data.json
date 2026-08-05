@@ -174,5 +174,22 @@
       "accumulated_depreciation": 1000
     }
   },
-  "production": {}
+  "production": {
+    "1": {
+      "id": 1,
+      "greenhouse_id": 1,
+      "cycle_id": 1,
+      "date": "2026-06-20",
+      "weight": 45,
+      "grade": "A"
+    },
+    "2": {
+      "id": 2,
+      "greenhouse_id": 1,
+      "cycle_id": 1,
+      "date": "2026-06-21",
+      "weight": 38,
+      "grade": "B"
+    }
+  }
 }
