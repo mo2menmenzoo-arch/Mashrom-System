@@ -156,7 +156,28 @@
       "total_amount": 6000
     }
   },
-  "operational_logs": {},
+  "operational_logs": {
+    "1": {
+      "id": 1,
+      "cycle_id": 1,
+      "date": "2026-06-20",
+      "temperature": 24,
+      "humidity": 85,
+      "co2_level": 800,
+      "hygiene_status": "Excellent",
+      "operator_id": 4
+    },
+    "2": {
+      "id": 2,
+      "cycle_id": 1,
+      "date": "2026-06-21",
+      "temperature": 23,
+      "humidity": 88,
+      "co2_level": 850,
+      "hygiene_status": "Good",
+      "operator_id": 4
+    }
+  },
   "employees": {
     "1": {
       "name": "الفار",
