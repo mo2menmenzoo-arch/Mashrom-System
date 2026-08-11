@@ -111,7 +111,28 @@
       "last_updated": "2026-07-18T20:02:34.195Z"
     }
   },
-  "transactions": {},
+  "transactions": {
+    "1": {
+      "id": 1,
+      "timestamp": "2026-06-18T10:00:00.000Z",
+      "user_id": 1,
+      "operation_type": "Withdrawal",
+      "amount": 2500,
+      "balance_before": 50000,
+      "balance_after": 47500,
+      "details": "مصروف تشغيلي: شراء خامات بيئية ومستلزمات تعقيم"
+    },
+    "2": {
+      "id": 2,
+      "timestamp": "2026-06-25T11:00:00.000Z",
+      "user_id": 1,
+      "operation_type": "Deposit",
+      "amount": 4000,
+      "balance_before": 47500,
+      "balance_after": 51500,
+      "details": "مبيعات لـ محل السلام للمواد الغذائية (كراتين: 50)"
+    }
+  },
   "expenses": {
     "1": {
       "id": 1,
