@@ -43,14 +43,7 @@
       "profit_percentage": 40
     }
   },
-  "greenhouses": {
-    "2": {
-      "name": "soba A",
-      "capacity": 4000,
-      "status": "Active",
-      "id": 2
-    }
-  },
+  "greenhouses": {},
   "cycles": {
     "1": {
       "greenhouse_id": 1,
