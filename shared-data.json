@@ -43,7 +43,14 @@
       "profit_percentage": 40
     }
   },
-  "greenhouses": {},
+  "greenhouses": {
+    "4": {
+      "name": "صوبة A",
+      "capacity": 400,
+      "status": "Active",
+      "id": 4
+    }
+  },
   "cycles": {
     "1": {
       "greenhouse_id": 1,
