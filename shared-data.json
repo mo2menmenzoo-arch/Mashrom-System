@@ -59,6 +59,14 @@
       "status": "Active",
       "initial_investment": 55,
       "id": 1
+    },
+    "7": {
+      "greenhouse_id": 4,
+      "cycle_number": "1",
+      "start_date": "2026-08-17",
+      "status": "Active",
+      "initial_investment": 100000,
+      "id": 7
     }
   },
   "inventory": {
